@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	t "time"
 
 	"github.com/gorilla/mux"
 
@@ -23,6 +24,10 @@ type date struct {
 	month *string
 	day   *string
 
+	HasYear  bool
+	HasMonth bool
+	HasDay   bool
+
 	repr string
 }
 
@@ -38,16 +43,19 @@ func newDate(dateStr *string) (*date, error) {
 	yearStr := dParts[0]
 	dStrParts := []string{yearStr, "01", "01"}
 	d := &date{
-		year: &yearStr,
+		year:    &yearStr,
+		HasYear: true,
 	}
 	if len(dParts) >= 2 {
 		monthStr := getTimeUnitWithHeadingZeroes(dParts[1])
 		d.month = &monthStr
+		d.HasMonth = true
 		dStrParts[1] = monthStr
 	}
 	if len(dParts) >= 3 {
 		dayStr := getTimeUnitWithHeadingZeroes(dParts[2])
 		d.day = &dayStr
+		d.HasDay = true
 		dStrParts[2] = dayStr
 	}
 	d.repr = strings.Join(dStrParts, "-")
@@ -59,36 +67,43 @@ func (d *date) String() string {
 }
 
 type time struct {
-	Hour   *string
-	Minute *string
-	Second *string
+	hour   *string
+	minute *string
+	second *string
+
+	HasHour   bool
+	HasMinute bool
+	HasSecond bool
 
 	repr string
 }
 
 func newTime(timeStr *string) (*time, error) {
 	t := &time{}
-	if timeStr == nil {
+	if timeStr == nil || *timeStr == "" {
 		t.repr = "00:00:00"
 		return t, nil
 	}
 	tParts := utils.ReExtractNumbers(*timeStr)
 	timePartsCount := 3
 	if len(tParts) == 0 || len(tParts) > timePartsCount {
-		return nil, fmt.Errorf("expected from 1 to %d date parts, actual number: %d", timePartsCount, len(tParts))
+		return nil, fmt.Errorf("expected from 1 to %d time parts, actual number: %d", timePartsCount, len(tParts))
 	}
 	hourStr := getTimeUnitWithHeadingZeroes(tParts[0])
 	tStrParts := []string{hourStr, "00", "00"}
-	t.Hour = &hourStr
+	t.hour = &hourStr
+	t.HasHour = true
 	if len(tParts) >= 2 {
 		minuteStr := getTimeUnitWithHeadingZeroes(tParts[1])
 		tStrParts[1] = minuteStr
-		t.Minute = &tParts[1]
+		t.minute = &tParts[1]
+		t.HasMinute = true
 	}
 	if len(tParts) >= 3 {
 		secondStr := getTimeUnitWithHeadingZeroes(tParts[2])
 		tStrParts[2] = secondStr
-		t.Second = &tParts[2]
+		t.second = &tParts[2]
+		t.HasSecond = true
 	}
 	t.repr = strings.Join(tStrParts, ":")
 	return t, nil
@@ -101,11 +116,6 @@ func (t time) String() string {
 type dateTime struct {
 	date *date
 	time *time
-}
-
-func (dt dateTime) String() string {
-	repr := dt.date.String() + "T" + dt.time.String() + "Z"
-	return repr
 }
 
 func newDateTime(dateTimeStr string) (*dateTime, error) {
@@ -128,6 +138,56 @@ func newDateTime(dateTimeStr string) (*dateTime, error) {
 	return dt, nil
 }
 
+func (dt dateTime) String() string {
+	repr := dt.date.String() + "T" + dt.time.String() + "Z"
+	return repr
+}
+
+type timePeriod struct {
+	from *t.Time
+	to   *t.Time
+}
+
+func newTimePeriod(fromDT *dateTime) (*timePeriod, error) {
+	if fromDT == nil {
+		return nil, fmt.Errorf("nil dateTime passed")
+	}
+	from, err := t.Parse(t.RFC3339, fromDT.String())
+	if err != nil {
+		return nil, err
+	}
+	to := timePeriodGetTo(fromDT, from)
+	timePeriod := &timePeriod{
+		from: &from,
+		to:   &to,
+	}
+	return timePeriod, nil
+}
+
+func timePeriodGetTo(fromDT *dateTime, from t.Time) t.Time {
+	if !fromDT.date.HasMonth {
+		return from.AddDate(1, 0, 0)
+	}
+	if !fromDT.date.HasDay {
+		return from.AddDate(0, 1, 0)
+	}
+	if !fromDT.time.HasHour {
+		return from.AddDate(0, 0, 1)
+	}
+	if !fromDT.time.HasMinute {
+		return from.Add(t.Hour)
+	}
+	if !fromDT.time.HasSecond {
+		return from.Add(t.Minute)
+	}
+	return from.Add(t.Second)
+}
+
+func (tp *timePeriod) String() string {
+	repr := fmt.Sprintf("From: %v\nTo: %v", tp.from, tp.to)
+	return repr
+}
+
 func DateDistinctHandler(w http.ResponseWriter, r *http.Request) {
 	date, ok := mux.Vars(r)["date"]
 	if !ok {
@@ -141,7 +201,13 @@ func DateDistinctHandler(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(err.Error()))
 		return
 	}
-	msg := fmt.Sprintf("Date: %v", dt)
+	tp, err := newTimePeriod(dt)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(err.Error()))
+		return
+	}
+	msg := fmt.Sprintf("TP: %v", tp)
 	w.Write([]byte(msg))
 }
 
