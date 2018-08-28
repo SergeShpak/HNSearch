@@ -6,7 +6,7 @@ The user can extract data on the queries that were made during a specific time p
 1. get the number of distinct queries
 2. get the most popular queries
 
-The user can extract data only for the queries stored in the __hn_logs.tsv__ dump file, i.e. the requests between **2015-08-01 00:03:43** and **2015-08-04 05:52:16**.
+The user can extract data only for the queries stored in a dump file. The current dump contains the requests made between **2015-08-01 00:03:43** and **2015-08-04 05:52:16**.
 
 ## Getting Started
 
