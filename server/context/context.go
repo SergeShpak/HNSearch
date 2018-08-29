@@ -3,5 +3,5 @@ package context
 type Key int
 
 const (
-	QueryDumpID Key = iota
+	QueryHandlerID Key = iota
 )

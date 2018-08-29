@@ -10,7 +10,7 @@ import (
 	"github.com/gorilla/mux"
 
 	"github.com/SergeyShpak/HNSearch/server/context"
-	"github.com/SergeyShpak/HNSearch/server/model"
+	"github.com/SergeyShpak/HNSearch/server/model/query_handler"
 	"github.com/SergeyShpak/HNSearch/server/utils"
 )
 
@@ -209,15 +209,17 @@ func DateDistinctHandler(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(err.Error()))
 		return
 	}
-	msg := fmt.Sprintf("TP: %v", tp)
-	qd, ok := r.Context().Value(context.QueryDumpID).(*model.QueryDump)
+	qdVal := r.Context().Value(context.QueryHandlerID)
+	fmt.Println("QD val: ", qdVal)
+	qd, ok := r.Context().Value(context.QueryHandlerID).(query_handler.QueryHandler)
 	if !ok {
-		msg := "could not cast dump in context to QueryDump"
+		msg := "could not cast dump in the request context to QueryDump"
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write([]byte(msg))
 		return
 	}
-	model.GetDistinctQueries(qd, tp.from, tp.to)
+	disttantQueries := qd.CountQueries(tp.from, tp.to)
+	msg := fmt.Sprintf("Distant queries: %d", disttantQueries)
 	w.Write([]byte(msg))
 }
 
