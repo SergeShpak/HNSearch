@@ -32,3 +32,16 @@ func Read(path string) (*Config, error) {
 
 	return config, nil
 }
+
+func GetDefaultConfig() *Config {
+	c := &Config{
+		Server: &Server{
+			Port: 8080,
+		},
+		QueryHandler: &QueryHandler{
+			File: "hn_logs.tsv",
+			Type: "QueryDump",
+		},
+	}
+	return c
+}
