@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -191,56 +192,80 @@ func (tp *timePeriod) String() string {
 }
 
 func DateDistinctHandler(w http.ResponseWriter, r *http.Request) {
-	date, ok := mux.Vars(r)["date"]
-	if !ok {
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte("NoDate!"))
-		return
-	}
-	dt, err := newDateTime(date)
+	tp, err := getTimePeriod(r)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte(err.Error()))
-		return
-	}
-	tp, err := newTimePeriod(dt)
-	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte(err.Error()))
+		w.Write([]byte(fmt.Sprintf("An error occurred during time period parsing: %v", err)))
 		return
 	}
 	qdVal := r.Context().Value(context.QueryHandlerID)
-	fmt.Println("QD val: ", qdVal)
-	qd, ok := r.Context().Value(context.QueryHandlerID).(query_handler.QueryHandler)
+	qd, ok := qdVal.(query_handler.QueryHandler)
 	if !ok {
 		msg := "could not cast dump in the request context to QueryDump"
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write([]byte(msg))
 		return
 	}
-	disttantQueries := qd.CountQueries(tp.from, tp.to)
-	msg := fmt.Sprintf("Distant queries: %d", disttantQueries)
+	distantQueries := qd.CountDistinctQueries(tp.from, tp.to)
+	msg, err := json.Marshal(distantQueries)
+	if err != nil {
+		msg := "could not marshal QueriesCount object"
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(msg))
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
 	w.Write([]byte(msg))
 }
 
 func DatePopularHandler(w http.ResponseWriter, r *http.Request) {
-	date, ok := mux.Vars(r)["date"]
-	if !ok {
+	tp, err := getTimePeriod(r)
+	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte("NoDate!"))
+		w.Write([]byte(fmt.Sprintf("An error occurred during time period parsing: %v", err)))
 		return
 	}
-	dateMsg := fmt.Sprintf("Date: %s", date)
 	size, err := getSizeParam(r)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write([]byte(err.Error()))
 		return
 	}
-	sizeMsg := fmt.Sprintf("Size: %d", size)
-	msg := dateMsg + "\n" + sizeMsg
+	qdVal := r.Context().Value(context.QueryHandlerID)
+	qd, ok := qdVal.(query_handler.QueryHandler)
+	if !ok {
+		msg := "could not cast dump in the request context to QueryDump"
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(msg))
+		return
+	}
+	queriesCount := qd.GetTopQueries(tp.from, tp.to, size)
+	msg, err := json.Marshal(queriesCount)
+	if err != nil {
+		msg := "could not marshal QueriesCount object"
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(msg))
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
 	w.Write([]byte(msg))
 	return
+}
+
+func getTimePeriod(r *http.Request) (*timePeriod, error) {
+	date, ok := mux.Vars(r)["date"]
+	if !ok {
+		return nil, fmt.Errorf("No date was passed")
+	}
+	dt, err := newDateTime(date)
+	if err != nil {
+		return nil, err
+	}
+	tp, err := newTimePeriod(dt)
+	if err != nil {
+		return nil, err
+	}
+	return tp, nil
 }
 
 func getSizeParam(r *http.Request) (int, error) {
