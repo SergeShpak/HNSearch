@@ -8,8 +8,17 @@ import (
 )
 
 type QueryHandler interface {
-	CountQueries(from *time.Time, to *time.Time) int
-	GetTopQueries(from *time.Time, to *time.Time, size int) int
+	CountDistinctQueries(from *time.Time, to *time.Time) *DistinctQueriesCount
+	GetTopQueries(from *time.Time, to *time.Time, size int) []*QueryCount
+}
+
+type DistinctQueriesCount struct {
+	Count int
+}
+
+type QueryCount struct {
+	Query string
+	Count int
 }
 
 func GetQueryHandler(qh *config.QueryHandler) (QueryHandler, error) {
