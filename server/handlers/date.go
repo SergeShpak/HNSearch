@@ -4,145 +4,28 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strconv"
-	"strings"
 	t "time"
 
-	"github.com/gorilla/mux"
-
-	"github.com/SergeyShpak/HNSearch/server/context"
+	ctxIDs "github.com/SergeyShpak/HNSearch/server/context"
 	"github.com/SergeyShpak/HNSearch/server/model/query_handler"
-	"github.com/SergeyShpak/HNSearch/server/utils"
+	"github.com/SergeyShpak/HNSearch/server/types"
 )
 
-func getTimeUnitWithHeadingZeroes(timeUnit string) string {
-	if len(timeUnit) == 2 {
-		return timeUnit
-	}
-	return "0" + timeUnit
-}
-
-type date struct {
-	year  *string
-	month *string
-	day   *string
-
-	HasYear  bool
-	HasMonth bool
-	HasDay   bool
-
-	repr string
-}
-
-func newDate(dateStr *string) (*date, error) {
-	if dateStr == nil {
-		return nil, fmt.Errorf("nil dateString passed")
-	}
-	dParts := utils.ReExtractNumbers(*dateStr)
-	datePartsCount := 3
-	if len(dParts) == 0 || len(dParts) > datePartsCount {
-		return nil, fmt.Errorf("expected from 1 to %d date parts, actual number: %d", datePartsCount, len(dParts))
-	}
-	yearStr := dParts[0]
-	dStrParts := []string{yearStr, "01", "01"}
-	d := &date{
-		year:    &yearStr,
-		HasYear: true,
-	}
-	if len(dParts) >= 2 {
-		monthStr := getTimeUnitWithHeadingZeroes(dParts[1])
-		d.month = &monthStr
-		d.HasMonth = true
-		dStrParts[1] = monthStr
-	}
-	if len(dParts) >= 3 {
-		dayStr := getTimeUnitWithHeadingZeroes(dParts[2])
-		d.day = &dayStr
-		d.HasDay = true
-		dStrParts[2] = dayStr
-	}
-	d.repr = strings.Join(dStrParts, "-")
-	return d, nil
-}
-
-func (d *date) String() string {
-	return d.repr
-}
-
-type time struct {
-	hour   *string
-	minute *string
-	second *string
-
-	HasHour   bool
-	HasMinute bool
-	HasSecond bool
-
-	repr string
-}
-
-func newTime(timeStr *string) (*time, error) {
-	t := &time{}
-	if timeStr == nil || *timeStr == "" {
-		t.repr = "00:00:00"
-		return t, nil
-	}
-	tParts := utils.ReExtractNumbers(*timeStr)
-	timePartsCount := 3
-	if len(tParts) == 0 || len(tParts) > timePartsCount {
-		return nil, fmt.Errorf("expected from 1 to %d time parts, actual number: %d", timePartsCount, len(tParts))
-	}
-	hourStr := getTimeUnitWithHeadingZeroes(tParts[0])
-	tStrParts := []string{hourStr, "00", "00"}
-	t.hour = &hourStr
-	t.HasHour = true
-	if len(tParts) >= 2 {
-		minuteStr := getTimeUnitWithHeadingZeroes(tParts[1])
-		tStrParts[1] = minuteStr
-		t.minute = &tParts[1]
-		t.HasMinute = true
-	}
-	if len(tParts) >= 3 {
-		secondStr := getTimeUnitWithHeadingZeroes(tParts[2])
-		tStrParts[2] = secondStr
-		t.second = &tParts[2]
-		t.HasSecond = true
-	}
-	t.repr = strings.Join(tStrParts, ":")
-	return t, nil
-}
-
-func (t time) String() string {
-	return t.repr
-}
-
 type dateTime struct {
-	date *date
-	time *time
+	Date *types.Date
+	Time *types.Time
 }
 
-func newDateTime(dateTimeStr string) (*dateTime, error) {
-	date, time, err := utils.ReSplitDateTime(dateTimeStr)
-	if err != nil {
-		return nil, err
-	}
-	d, err := newDate(date)
-	if err != nil {
-		return nil, err
-	}
-	t, err := newTime(time)
-	if err != nil {
-		return nil, err
-	}
+func newDateTime(date *types.Date, time *types.Time) *dateTime {
 	dt := &dateTime{
-		date: d,
-		time: t,
+		Date: date,
+		Time: time,
 	}
-	return dt, nil
+	return dt
 }
 
 func (dt dateTime) String() string {
-	repr := dt.date.String() + "T" + dt.time.String() + "Z"
+	repr := dt.Date.String() + "T" + dt.Time.String() + "Z"
 	return repr
 }
 
@@ -168,19 +51,19 @@ func newTimePeriod(fromDT *dateTime) (*timePeriod, error) {
 }
 
 func timePeriodGetTo(fromDT *dateTime, from t.Time) t.Time {
-	if !fromDT.date.HasMonth {
+	if fromDT.Date.Month == nil {
 		return from.AddDate(1, 0, 0)
 	}
-	if !fromDT.date.HasDay {
+	if fromDT.Date.Day == nil {
 		return from.AddDate(0, 1, 0)
 	}
-	if !fromDT.time.HasHour {
+	if fromDT.Time.Hour == nil {
 		return from.AddDate(0, 0, 1)
 	}
-	if !fromDT.time.HasMinute {
+	if fromDT.Time.Minute == nil {
 		return from.Add(t.Hour)
 	}
-	if !fromDT.time.HasSecond {
+	if fromDT.Time.Second == nil {
 		return from.Add(t.Minute)
 	}
 	return from.Add(t.Second)
@@ -198,7 +81,7 @@ func DateDistinctHandler(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(fmt.Sprintf("An error occurred during time period parsing: %v", err)))
 		return
 	}
-	qdVal := r.Context().Value(context.QueryHandlerID)
+	qdVal := r.Context().Value(ctxIDs.QueryHandlerID)
 	qd, ok := qdVal.(query_handler.QueryHandler)
 	if !ok {
 		msg := "could not cast dump in the request context to QueryDump"
@@ -225,13 +108,13 @@ func DatePopularHandler(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(fmt.Sprintf("An error occurred during time period parsing: %v", err)))
 		return
 	}
-	size, err := getSizeParam(r)
+	size, err := getSize(r)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write([]byte(err.Error()))
 		return
 	}
-	qdVal := r.Context().Value(context.QueryHandlerID)
+	qdVal := r.Context().Value(ctxIDs.QueryHandlerID)
 	qd, ok := qdVal.(query_handler.QueryHandler)
 	if !ok {
 		msg := "could not cast dump in the request context to QueryDump"
@@ -253,14 +136,15 @@ func DatePopularHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func getTimePeriod(r *http.Request) (*timePeriod, error) {
-	date, ok := mux.Vars(r)["date"]
+	date, ok := r.Context().Value(ctxIDs.DateParamID).(*types.Date)
 	if !ok {
-		return nil, fmt.Errorf("No date was passed")
+		return nil, fmt.Errorf("cannot get Date from the request context")
 	}
-	dt, err := newDateTime(date)
-	if err != nil {
-		return nil, err
+	time, ok := r.Context().Value(ctxIDs.TimeParamID).(*types.Time)
+	if !ok {
+		return nil, fmt.Errorf("cannot get Time from the request context")
 	}
+	dt := newDateTime(date, time)
 	tp, err := newTimePeriod(dt)
 	if err != nil {
 		return nil, err
@@ -268,29 +152,10 @@ func getTimePeriod(r *http.Request) (*timePeriod, error) {
 	return tp, nil
 }
 
-func getSizeParam(r *http.Request) (int, error) {
-	var size int
-	sizeParams, err := getParameter("size", r)
-	if err != nil {
-		return size, err
-	}
-	if len(sizeParams) > 1 {
-		return size, fmt.Errorf("multiple size parameters passed")
-	}
-	size, err = parseSize(sizeParams[0])
-	if err != nil {
-		return size, err
+func getSize(r *http.Request) (int, error) {
+	size, ok := r.Context().Value(ctxIDs.SizeParamID).(int)
+	if !ok {
+		return 0, fmt.Errorf("cannot get Size from the request context")
 	}
 	return size, nil
-}
-
-func parseSize(size string) (int, error) {
-	s, err := strconv.Atoi(size)
-	if err != nil {
-		return s, err
-	}
-	if s <= 0 {
-		return s, fmt.Errorf("size %d is invalid", s)
-	}
-	return s, nil
 }

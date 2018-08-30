@@ -40,6 +40,21 @@ func newSimleQueryHanlder(queryDumpFile string) (*simpleQueryHandler, error) {
 	return qd, nil
 }
 
+func (qh *simpleQueryHandler) CountDistinctQueries(from *time.Time, to *time.Time) *DistinctQueriesCount {
+	interval := qh.getQueiresInterval(from, to)
+	distinctQueries := qh.getDistinctQueries(interval)
+	distinctQueriesCount := &DistinctQueriesCount{
+		Count: len(distinctQueries),
+	}
+	return distinctQueriesCount
+}
+
+func (qh *simpleQueryHandler) GetTopQueries(from *time.Time, to *time.Time, size int) []*QueryCount {
+	interval := qh.getQueiresInterval(from, to)
+	queriesCount := qh.getTopQueries(interval, size)
+	return queriesCount
+}
+
 func (qh *simpleQueryHandler) addQueryEntry(entry string) error {
 	dParts := strings.Split(entry, "\t")
 	if len(dParts) != 2 {
@@ -68,21 +83,6 @@ func (qh *simpleQueryHandler) dateStrToTime(dateStr string) (*time.Time, error) 
 		return nil, err
 	}
 	return &date, nil
-}
-
-func (qh *simpleQueryHandler) CountDistinctQueries(from *time.Time, to *time.Time) *DistinctQueriesCount {
-	interval := qh.getQueiresInterval(from, to)
-	distinctQueries := qh.getDistinctQueries(interval)
-	distinctQueriesCount := &DistinctQueriesCount{
-		Count: len(distinctQueries),
-	}
-	return distinctQueriesCount
-}
-
-func (qh *simpleQueryHandler) GetTopQueries(from *time.Time, to *time.Time, size int) []*QueryCount {
-	interval := qh.getQueiresInterval(from, to)
-	queriesCount := qh.getTopQueries(interval, size)
-	return queriesCount
 }
 
 func (qh *simpleQueryHandler) checkFromToOrder(from *time.Time, to *time.Time) (*time.Time, *time.Time) {

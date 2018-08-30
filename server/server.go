@@ -9,19 +9,26 @@ import (
 	"github.com/gorilla/mux"
 
 	"github.com/SergeyShpak/HNSearch/config"
-	ctx "github.com/SergeyShpak/HNSearch/server/context"
+	ctxIDs "github.com/SergeyShpak/HNSearch/server/context"
 	"github.com/SergeyShpak/HNSearch/server/handlers"
-	qh "github.com/SergeyShpak/HNSearch/server/model/query_handler"
+	middleware_date "github.com/SergeyShpak/HNSearch/server/middleware/date"
+	"github.com/SergeyShpak/HNSearch/server/model/query_handler"
+	"github.com/SergeyShpak/HNSearch/server/utils/reqparser"
 )
 
-var queryHandler qh.QueryHandler
+var queryHandler query_handler.QueryHandler
+var requestParser reqparser.Parser
 
 func InitServer(c *config.Config) (*http.Server, error) {
 	if c == nil {
 		c = config.GetDefaultConfig()
 	}
 	var err error
-	queryHandler, err = qh.GetQueryHandler(c.QueryHandler)
+	queryHandler, err = query_handler.GetQueryHandler(c.QueryHandler)
+	if err != nil {
+		return nil, err
+	}
+	requestParser, err = reqparser.GetRequestsParser()
 	if err != nil {
 		return nil, err
 	}
@@ -44,13 +51,15 @@ func newRouter() *mux.Router {
 	r := mux.NewRouter()
 	r.Path("/1/queries/count/{date}").Methods("GET").Queries("size", "{size}").HandlerFunc(handlers.DatePopularHandler)
 	r.Path("/1/queries/count/{date}").Methods("GET").HandlerFunc(handlers.DateDistinctHandler)
-	r.Use(getDumpHandler)
+	r.Use(setRequestUtils)
+	r.Use(middleware_date.ParseDateRequest)
 	return r
 }
 
-func getDumpHandler(next http.Handler) http.Handler {
+func setRequestUtils(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ctx := context.WithValue(r.Context(), ctx.QueryHandlerID, queryHandler)
+		ctx := context.WithValue(r.Context(), ctxIDs.QueryHandlerID, queryHandler)
+		ctx = context.WithValue(ctx, ctxIDs.RequestParserID, requestParser)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }

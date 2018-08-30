@@ -1,4 +1,4 @@
-//+build regexp_slow_test
+//+build regexps_slow_test
 
 package utils
 
