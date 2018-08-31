@@ -4,10 +4,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math/rand"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/SergeyShpak/HNSearch/config"
 	"github.com/SergeyShpak/HNSearch/server/model/query_handler"
@@ -159,6 +161,7 @@ func TestDatePopularHandler(t *testing.T) {
 }
 
 func initServer() (*http.Server, error) {
+	rand.Seed(time.Now().UTC().UnixNano())
 	c := config.GetDefaultConfig()
 	c.QueryHandler.File = "../hn_logs.tsv"
 	s, err := InitServer(c)
