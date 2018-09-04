@@ -7,7 +7,6 @@ import (
 	"io/ioutil"
 	"os"
 	"sort"
-	"strings"
 	"time"
 )
 
@@ -47,29 +46,21 @@ func (sorter *SimpleSorter) splitLargeSet(r io.Reader) (string, error) {
 		return dir, err
 	}
 	fileTemplate := fmt.Sprintf("./%s%cchunk_%%d", dir, os.PathSeparator)
-	cleanFn := func() error {
-		if err := os.RemoveAll(dir); err != nil {
-			return err
-		}
-		return nil
-	}
 	writeToFileFn := func() error {
 		sort.Slice(lines, func(i int, j int) bool {
-			dateI := strings.Split(lines[i], "\t")[0]
-			dateJ := strings.Split(lines[j], "\t")[0]
-			return dateI < dateJ
+			return lines[i] < lines[j]
 		})
 		fileName := fmt.Sprintf(fileTemplate, chunkNumber)
 		fmt.Println("file: ", fileName)
 		if err := dumpToFile(fileName, lines); err != nil {
 			fmt.Println("ERROR!: ", err)
-			if err := cleanFn(); err != nil {
+			if err := os.RemoveAll(dir); err != nil {
 				return err
 			}
 			return err
 		}
 		chunkNumber++
-		lines = lines[:0]
+		lines = make([]string, 0)
 		return nil
 	}
 	for scanner.Scan() {
@@ -78,13 +69,19 @@ func (sorter *SimpleSorter) splitLargeSet(r io.Reader) (string, error) {
 		lines = append(lines, line)
 		if currLen > maxBufLen {
 			if err := writeToFileFn(); err != nil {
-				return dir, err
+				if err := os.RemoveAll(dir); err != nil {
+					return "", err
+				}
+				return "", err
 			}
 			currLen = 0
 		}
 	}
 	if err := writeToFileFn(); err != nil {
-		return dir, err
+		if err := os.RemoveAll(dir); err != nil {
+			return "", err
+		}
+		return "", err
 	}
 	return dir, nil
 }
@@ -138,6 +135,10 @@ func dumpToFile(fileName string, data []string) error {
 	writer := bufio.NewWriter(f)
 	for _, s := range data {
 		writer.WriteString(s)
+	}
+	writer.Flush()
+	if err := f.Close(); err != nil {
+		return err
 	}
 	return nil
 }
