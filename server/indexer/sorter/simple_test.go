@@ -5,18 +5,32 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/SergeyShpak/HNSearch/server/indexer/config"
 )
 
 func TestSorter(t *testing.T) {
-	sorter := NewSimpleSorter()
+	c := &config.SimpleSorter{
+		Buffer: 50 * 1024 * 1024,
+		OutDir: "sorted",
+		Parser: &config.Parser{
+			Simple: &config.SimpleParser{},
+		},
+		TmpCreationRetries: 10,
+	}
+	sorter, err := newSimpleSorter(c)
+	if err != nil {
+		t.Fatalf("error during sorter initialization: %v", err)
+	}
 	fd, err := os.Open("../../../hn_logs.tsv")
 	if err != nil {
 		t.Fatalf("error during file open: %v", err)
 	}
-	if err := sorter.SortSet(fd); err != nil {
+	sortedFile, err := sorter.SortSet(fd)
+	if err != nil {
 		t.Fatalf("error during set sorting: %v", err)
 	}
-	sortedCount, err := getQueryCount("sorted.tsv")
+	sortedCount, err := getQueryCount(sortedFile)
 	if err != nil {
 		t.Fatalf("error when counting sorted queries")
 	}
