@@ -1,0 +1,12 @@
+{
+  "Sorter": {
+    "Simple": {
+      "Buffer": 52428800,
+      "OutDir": "../../../sorted",
+      "Parser": {
+        "Simple": {}
+      },
+      "TmpCreationRetries": 10
+    }
+  }
+}
