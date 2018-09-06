@@ -182,6 +182,7 @@ func (indexer *simpleIndexer) UpdateIndices(r io.Reader) error {
 	if err != nil {
 		return err
 	}
+	fmt.Println(indexesToUpdate)
 	if err := indexer.updateParentsIndexes(indexesToUpdate); err != nil {
 		return err
 	}
@@ -466,7 +467,7 @@ func (indexer *simpleIndexer) writeIndexToFile(dir string, data *hourData) (stri
 		return "", err
 	}
 	gobEncoder := gob.NewEncoder(f)
-	if err := gobEncoder.Encode(data.Partition); err != nil {
+	if err := gobEncoder.Encode(data); err != nil {
 		if err := f.Close(); err != nil {
 			return "", err
 		}
