@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/SergeyShpak/HNSearch/server/indexer/config"
+	"github.com/SergeyShpak/HNSearch/indexer/config"
 )
 
 type simpleParser struct{}

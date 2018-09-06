@@ -3,7 +3,7 @@ package parser
 import (
 	"fmt"
 
-	"github.com/SergeyShpak/HNSearch/server/indexer/config"
+	"github.com/SergeyShpak/HNSearch/indexer/config"
 )
 
 type Parser interface {

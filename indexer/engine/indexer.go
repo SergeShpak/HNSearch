@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/SergeyShpak/HNSearch/server/indexer/config"
+	"github.com/SergeyShpak/HNSearch/indexer/config"
 )
 
 type Indexer interface {

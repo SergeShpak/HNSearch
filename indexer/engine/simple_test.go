@@ -4,7 +4,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/SergeyShpak/HNSearch/server/indexer/config"
+	"github.com/SergeyShpak/HNSearch/indexer/config"
 )
 
 func TestSimpleIndexer(t *testing.T) {

@@ -1,12 +1,18 @@
 {
+  "Server": {
+    "Port": 8080
+  },
+  "Indexer": {
+    "Simple": {}
+  },
   "Sorter": {
     "Simple": {
       "Buffer": 52428800,
       "OutDir": "../../../sorted",
-      "Parser": {
-        "Simple": {}
-      },
       "TmpCreationRetries": 10
     }
+  },
+  "Parser": {
+    "Simple": {}
   }
 }

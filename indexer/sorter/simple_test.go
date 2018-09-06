@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/SergeyShpak/HNSearch/server/indexer/config"
+	"github.com/SergeyShpak/HNSearch/indexer/config"
 )
 
 func TestSorter(t *testing.T) {

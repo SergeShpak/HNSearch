@@ -6,7 +6,21 @@ import (
 )
 
 type Config struct {
-	Sorter *Sorter
+	Server  *Server
+	Indexer *Indexer
+	Sorter  *Sorter
+	Parser  *Parser
+}
+
+type Server struct {
+	Port int
+}
+
+type Indexer struct {
+	Simple *SimpleIndexer
+}
+
+type SimpleIndexer struct {
 }
 
 type Sorter struct {
@@ -16,7 +30,6 @@ type Sorter struct {
 type SimpleSorter struct {
 	Buffer             uint64
 	OutDir             string
-	Parser             *Parser
 	TmpCreationRetries int
 }
 
@@ -42,15 +55,21 @@ func Read(path string) (*Config, error) {
 
 func GetDefaultConfig() *Config {
 	c := &Config{
+		Server: &Server{
+			Port: 8081,
+		},
+		Indexer: &Indexer{
+			Simple: &SimpleIndexer{},
+		},
 		Sorter: &Sorter{
 			Simple: &SimpleSorter{
-				Buffer: 52428800,
-				OutDir: "../sorted",
-				Parser: &Parser{
-					Simple: &SimpleParser{},
-				},
+				Buffer:             52428800,
+				OutDir:             "../sorted",
 				TmpCreationRetries: 10,
 			},
+		},
+		Parser: &Parser{
+			Simple: &SimpleParser{},
 		},
 	}
 	return c

@@ -12,9 +12,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/SergeyShpak/HNSearch/server/indexer/config"
-	"github.com/SergeyShpak/HNSearch/server/indexer/parser"
-	"github.com/SergeyShpak/HNSearch/server/indexer/sorter"
+	"github.com/SergeyShpak/HNSearch/indexer/config"
+	"github.com/SergeyShpak/HNSearch/indexer/parser"
+	"github.com/SergeyShpak/HNSearch/indexer/sorter"
 )
 
 type hourData struct {

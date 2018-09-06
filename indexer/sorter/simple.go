@@ -4,6 +4,7 @@ package sorter
 TODO:
 	1. Move random file generation to a subroutine (use github.com/rs/xid)
 	2. Add configuration checking
+	3. Pass output directory as a parameter
 */
 
 import (
@@ -15,8 +16,8 @@ import (
 	"sort"
 	"time"
 
-	"github.com/SergeyShpak/HNSearch/server/indexer/config"
-	"github.com/SergeyShpak/HNSearch/server/indexer/parser"
+	"github.com/SergeyShpak/HNSearch/indexer/config"
+	"github.com/SergeyShpak/HNSearch/indexer/parser"
 )
 
 type simpleSorter struct {
