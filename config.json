@@ -1,9 +1,0 @@
-{
-  "Server": {
-    "Port": 8080
-  },
-  "QueryHandler": {
-    "File": "hn_logs.tsv",
-    "Type": "QueryDump"
-  }
-}

@@ -6,17 +6,20 @@ import (
 )
 
 type Config struct {
-	Server       *Server
-	QueryHandler *QueryHandler
+	Server  *Server
+	Indexer *Indexer
 }
 
 type Server struct {
 	Port int
 }
 
-type QueryHandler struct {
-	File string
-	Type string
+type Indexer struct {
+	HTTP *HTTPIndexer
+}
+
+type HTTPIndexer struct {
+	Addr string
 }
 
 func Read(path string) (*Config, error) {
@@ -38,10 +41,7 @@ func GetDefaultConfig() *Config {
 		Server: &Server{
 			Port: 8080,
 		},
-		QueryHandler: &QueryHandler{
-			File: "hn_logs.tsv",
-			Type: "QueryDump",
-		},
+		Indexer: &Indexer{},
 	}
 	return c
 }
