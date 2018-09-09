@@ -7,7 +7,7 @@ import (
 	t "time"
 
 	ctxIDs "github.com/SergeyShpak/HNSearch/server/context"
-	"github.com/SergeyShpak/HNSearch/server/model/query_handler"
+	"github.com/SergeyShpak/HNSearch/server/indexer"
 	"github.com/SergeyShpak/HNSearch/server/types"
 )
 
@@ -81,26 +81,25 @@ func DateDistinctHandler(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(fmt.Sprintf("An error occurred during time period parsing: %v", err)))
 		return
 	}
-	qdVal := r.Context().Value(ctxIDs.QueryHandlerID)
-	qd, ok := qdVal.(query_handler.QueryHandler)
-	if !ok {
-		msg := "could not cast dump in the request context to QueryDump"
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte(msg))
-		return
-	}
-	distantQueries := qd.CountDistinctQueries(tp.from, tp.to)
-	msg, err := json.Marshal(distantQueries)
+	indexer, err := getIndexer(r)
 	if err != nil {
-		msg := "could not marshal QueriesCount object"
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte(msg))
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(fmt.Sprintf("%v", err)))
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
-	w.Write([]byte(msg))
+	queiresCount, err := indexer.CountDistinctQueries(tp.from, tp.to)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(fmt.Sprintf("%v", err)))
+		return
+	}
+	resp := &types.DistinctQueriesCountResponse{
+		Count: queiresCount,
+	}
+	sendJSONResponse(w, resp)
 }
 
+/*
 func DatePopularHandler(w http.ResponseWriter, r *http.Request) {
 	tp, err := getTimePeriod(r)
 	if err != nil {
@@ -120,7 +119,7 @@ func DatePopularHandler(w http.ResponseWriter, r *http.Request) {
 		msg := "could not cast dump in the request context to QueryDump"
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write([]byte(msg))
-		return
+		returnhttps://stackoverflow.com/questions/33238518/what-could-happen-if-i-dont-close-response-body-in-golang
 	}
 	queriesCount := qd.GetTopQueries(tp.from, tp.to, size)
 	msg, err := json.Marshal(queriesCount)
@@ -132,8 +131,8 @@ func DatePopularHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.Write([]byte(msg))
-	return
 }
+*/
 
 func getTimePeriod(r *http.Request) (*timePeriod, error) {
 	date, ok := r.Context().Value(ctxIDs.DateParamID).(*types.Date)
@@ -158,4 +157,21 @@ func getSize(r *http.Request) (int, error) {
 		return 0, fmt.Errorf("cannot get Size from the request context")
 	}
 	return size, nil
+}
+
+func getIndexer(r *http.Request) (indexer.Indexer, error) {
+	indexer, ok := r.Context().Value(ctxIDs.IndexerID).(indexer.Indexer)
+	if !ok {
+		return nil, fmt.Errorf("could not retrieve indexer from the context")
+	}
+	return indexer, nil
+}
+
+func sendJSONResponse(w http.ResponseWriter, resp interface{}) {
+	respB, err := json.Marshal(resp)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(fmt.Sprintf("could not marshal the response: %v", err)))
+	}
+	w.Write(respB)
 }

@@ -3,7 +3,7 @@ package context
 type Key int
 
 const (
-	QueryHandlerID Key = iota
+	IndexerID Key = iota
 	RequestParserID
 	DateParamID
 	TimeParamID

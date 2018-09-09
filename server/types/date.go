@@ -5,6 +5,11 @@ import (
 	"strings"
 )
 
+//TODO: separate web and internal types
+type DistinctQueriesCountResponse struct {
+	Count int
+}
+
 type Date struct {
 	Year  *string
 	Month *string
