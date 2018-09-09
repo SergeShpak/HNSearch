@@ -1,6 +1,7 @@
 package simple
 
 import (
+	"fmt"
 	"time"
 )
 
@@ -259,8 +260,66 @@ func (diff *datesDiff) getIndexesPaths() ([]*indexesPath, []*minutesSecondsIndex
 	return paths, minSecPaths
 }
 
-func (indexer *simpleIndexer) CountDistinctQueries(from *time.Time, to *time.Time) int {
-	return 0
+func (indexer *simpleIndexer) CountDistinctQueries(from *time.Time, to *time.Time) (int, error) {
+	fmt.Printf("from: %v, to: %v\n", from, to)
+	diff := newDatesDiff(from, to)
+	paths, minSecPaths := diff.getIndexesPaths()
+	for _, p := range paths {
+		fmt.Println("paths: ", p)
+	}
+	fmt.Println("msPaths: ", minSecPaths)
+	acc := newIndex()
+	var err error
+	acc, err = indexer.addIndexes(acc, paths)
+	if err != nil {
+		return 0, err
+	}
+	acc, err = indexer.addMinSecIndexes(acc, minSecPaths)
+	if err != nil {
+		return 0, err
+	}
+	return len(acc.QueriesDict), nil
+}
+
+func (indexer *simpleIndexer) addIndexes(acc *index, paths []*indexesPath) (*index, error) {
+	for _, p := range paths {
+		for _, i := range p.Indexes {
+			fileIndexParts := append(p.Path, i)
+			index, err := indexer.loadTotalIndex(fileIndexParts...)
+			if err != nil {
+				return nil, err
+			}
+			acc.AddWithoutRecalculation(index)
+		}
+	}
+	return acc, nil
+}
+
+func (indexer *simpleIndexer) addMinSecIndexes(acc *index, paths []*minutesSecondsIndexesPaths) (*index, error) {
+	for _, p := range paths {
+		fmt.Println("Path: ", p)
+		fileParts := p.Path[0:3]
+		for _, idx := range p.Indexes {
+			hourIndex, err := indexer.loadHourIndex(p.Path[3], fileParts)
+			if err != nil {
+				return nil, err
+			}
+			// indexes are minutes
+			if len(p.Path) == 4 {
+				m := hourIndex.Partition[idx]
+				for i := 0; i < 60; i++ {
+					acc.AddMapWithoutRecalculation(m[i])
+				}
+				continue
+			}
+			// indexes are seconds
+			if len(p.Path) == 5 {
+				s := hourIndex.Partition[p.Path[4]][idx]
+				acc.AddMapWithoutRecalculation(s)
+			}
+		}
+	}
+	return acc, nil
 }
 
 func (indexer *simpleIndexer) getIndexesToExamine(from *time.Time, to *time.Time) *indexesToExamine {

@@ -1,4 +1,6 @@
-package engine
+//+build simple_indexer_test
+
+package simple
 
 import (
 	"os"

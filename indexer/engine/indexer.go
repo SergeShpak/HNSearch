@@ -2,21 +2,24 @@ package engine
 
 import (
 	"fmt"
-	"io"
+	"time"
 
 	"github.com/SergeyShpak/HNSearch/indexer/config"
+	"github.com/SergeyShpak/HNSearch/indexer/engine/simple"
 )
 
 type Indexer interface {
-	UpdateIndices(r io.Reader) error
+	IndexData() error
+	CountDistinctQueries(from *time.Time, to *time.Time) (int, error)
 }
 
-func NewIndexer(c *config.Indexer) (Indexer, error) {
+func NewIndexer(c *config.Config) (Indexer, error) {
 	if c == nil {
 		return nil, fmt.Errorf("passed indexer configuration is nil")
 	}
-	if c.Simple != nil {
-		indexer, err := newSimpleIndexer(c.Simple)
+	if c.Indexer.Simple != nil {
+		// TODO: move simple indexer to an internal module
+		indexer, err := simple.NewSimpleIndexer(c)
 		if err != nil {
 			return nil, err
 		}

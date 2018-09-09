@@ -1,21 +1,92 @@
-package engine
+package simple
 
 import (
 	"bufio"
 	"encoding/gob"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"sort"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
-	"github.com/SergeyShpak/HNSearch/indexer/config"
 	"github.com/SergeyShpak/HNSearch/indexer/parser"
-	"github.com/SergeyShpak/HNSearch/indexer/sorter"
 )
+
+var indexedFilesLogName = "log"
+var dataServiceFileNames = []string{indexedFilesLogName}
+
+type indexedFilesLog struct {
+	Files map[string]byte
+}
+
+func newIndexedFilesLog() *indexedFilesLog {
+	l := &indexedFilesLog{}
+	l.Files = make(map[string]byte)
+	return l
+}
+
+func loadIndexedFilesLog(logFilePath string) (*indexedFilesLog, error) {
+	logFileExists, err := doesFileExist(logFilePath)
+	if err != nil {
+		return nil, err
+	}
+	if !logFileExists {
+		return nil, nil
+	}
+	fi, err := os.Stat(logFilePath)
+	if err != nil {
+		return nil, err
+	}
+	if fi.Size() == 0 {
+		return nil, nil
+	}
+	f, err := os.Open(logFilePath)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	decoder := gob.NewDecoder(f)
+	l := &indexedFilesLog{}
+	if err := decoder.Decode(l); err != nil {
+		return nil, err
+	}
+	return l, nil
+}
+
+func (l *indexedFilesLog) Log(path string) {
+	l.Files[path] = '1'
+}
+
+func (l *indexedFilesLog) StoreIndexedFilesLog(path string) error {
+	f, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	encoder := gob.NewEncoder(f)
+	if err := encoder.Encode(l); err != nil {
+		if err := f.Close(); err != nil {
+			return err
+		}
+		if err := os.Remove(path); err != nil {
+			return err
+		}
+		return err
+	}
+	if err := f.Close(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (l *indexedFilesLog) IsFileIndexed(filePath string) bool {
+	if _, ok := l.Files[filePath]; !ok {
+		return false
+	}
+	return true
+}
 
 type hourData struct {
 	Hour      *time.Time
@@ -64,13 +135,13 @@ func (idx *index) Sub(other *index) {
 }
 
 func (idx *index) Add(other *index) {
-	needRecalculation := idx.AddWithourRecalculation(other)
+	needRecalculation := idx.AddWithoutRecalculation(other)
 	if needRecalculation {
 		idx.CountQueries()
 	}
 }
 
-func (idx *index) AddWithourRecalculation(other *index) bool {
+func (idx *index) AddWithoutRecalculation(other *index) bool {
 	if len(other.QueriesDict) == 0 {
 		return false
 	}
@@ -81,6 +152,12 @@ func (idx *index) AddWithourRecalculation(other *index) bool {
 		idx.QueriesDict[query] += count
 	}
 	return true
+}
+
+func (idx *index) AddMapWithoutRecalculation(m map[string]int) bool {
+	other := newIndex()
+	other.QueriesDict = m
+	return idx.AddWithoutRecalculation(other)
 }
 
 func (idx *index) WriteTo(w io.Writer) error {
@@ -106,6 +183,115 @@ type toUpdate struct {
 	paths map[int]map[int]map[int]byte
 }
 
+func (indexer *simpleIndexer) IndexData() error {
+	dataFilesPaths, err := indexer.getUnidexedFiles()
+	if err != nil {
+		return err
+	}
+	l, err := indexer.loadIndexedFilesLog()
+	if err != nil {
+		return err
+	}
+	for _, path := range dataFilesPaths {
+		if err := indexer.addDataToIndexes(path); err != nil {
+			// TODO: log and continue
+			return err
+		}
+		l.Log(path)
+	}
+	if err := indexer.storeIndexedFilesLog(l); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (indexer *simpleIndexer) addDataToIndexes(path string) error {
+	f, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	sortedPath, err := indexer.sorter.SortSet(f)
+	f.Close()
+
+	f, err = os.Open(sortedPath)
+	if err != nil {
+		if err := os.Remove(sortedPath); err != nil {
+			return err
+		}
+		return err
+	}
+	if err := indexer.updateIndexes(f); err != nil {
+		f.Close()
+		if err := os.Remove(sortedPath); err != nil {
+			return err
+		}
+		return err
+	}
+	f.Close()
+	/*
+		if err := os.Remove(sortedPath); err != nil {
+			return err
+		}
+	*/
+	return nil
+
+}
+
+func (indexer *simpleIndexer) loadIndexedFilesLog() (*indexedFilesLog, error) {
+	logFilePath := strings.Join([]string{indexer.dataDir, indexedFilesLogName}, string(os.PathSeparator))
+	log, err := loadIndexedFilesLog(logFilePath)
+	if err != nil {
+		return nil, err
+	}
+	if log == nil {
+		log = newIndexedFilesLog()
+	}
+	return log, err
+}
+
+func (indexer *simpleIndexer) storeIndexedFilesLog(l *indexedFilesLog) error {
+	logFilePath := strings.Join([]string{indexer.dataDir, indexedFilesLogName}, string(os.PathSeparator))
+	if err := l.StoreIndexedFilesLog(logFilePath); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (indexer *simpleIndexer) getUnidexedFiles() ([]string, error) {
+	files, err := ioutil.ReadDir(indexer.dataDir)
+	if err != nil {
+		return nil, err
+	}
+	log, err := indexer.loadIndexedFilesLog()
+	if err != nil {
+		return nil, err
+	}
+	paths := make([]string, 0, len(files))
+	for _, f := range files {
+		if f.IsDir() {
+			continue
+		}
+		if indexer.isServiceFile(f) {
+			continue
+		}
+		filePath := strings.Join([]string{indexer.dataDir, f.Name()}, string(os.PathSeparator))
+		if log.IsFileIndexed(filePath) {
+			continue
+		}
+		paths = append(paths, filePath)
+	}
+	return paths, nil
+}
+
+func (indexer *simpleIndexer) isServiceFile(f os.FileInfo) bool {
+	for _, serviceF := range dataServiceFileNames {
+		if f.Name() == serviceF {
+			return true
+		}
+	}
+	return false
+}
+
 func newToUpdate() *toUpdate {
 	toUpdate := &toUpdate{
 		paths: make(map[int]map[int]map[int]byte),
@@ -127,39 +313,15 @@ func (tu *toUpdate) add(year int, month int, day int) error {
 	return nil
 }
 
-type simpleIndexer struct {
-	fileMux *sync.Mutex
-	parser  parser.Parser
-	sorter  sorter.Sorter
-}
-
-func newSimpleIndexer(c *config.SimpleIndexer) (*simpleIndexer, error) {
-	if c == nil {
-		return nil, fmt.Errorf("nil passed as simple indexer configuration")
-	}
-	indexer := &simpleIndexer{
-		fileMux: &sync.Mutex{},
-	}
-	var err error
-	indexer.parser, err = parser.NewParser(c.Parser)
-	if err != nil {
-		return nil, err
-	}
-	indexer.sorter, err = sorter.NewSorter(c.Sorter)
-	if err != nil {
-		return nil, err
-	}
-	return indexer, nil
-}
-
-func (indexer *simpleIndexer) UpdateIndices(r io.Reader) error {
+func (indexer *simpleIndexer) updateIndexes(r io.Reader) error {
 	scanner := bufio.NewScanner(r)
 	var data *hourData
 	var isFinished bool
 	var err error
 	indexesUpdated := make([]*hourIndexID, 0)
+	var lastQ *parser.Query
 	for {
-		data, isFinished, err = indexer.ScanHour(scanner)
+		data, isFinished, lastQ, err = indexer.scanHour(scanner, lastQ)
 		if err != nil {
 			return err
 		}
@@ -189,14 +351,14 @@ func (indexer *simpleIndexer) UpdateIndices(r io.Reader) error {
 	return nil
 }
 
-func (indexer *simpleIndexer) ScanHour(scanner *bufio.Scanner) (*hourData, bool, error) {
+func (indexer *simpleIndexer) scanHour(scanner *bufio.Scanner, firstHourQuery *parser.Query) (*hourData, bool, *parser.Query, error) {
 	if !scanner.Scan() {
-		return nil, true, nil
+		return nil, true, nil, nil
 	}
 	line := scanner.Text()
 	q, err := indexer.parser.Parse(line)
 	if err != nil {
-		return nil, false, err
+		return nil, false, nil, err
 	}
 	thisHour := time.Date(q.Date.Year(), q.Date.Month(), q.Date.Day(), q.Date.Hour(), 0, 0, 0, q.Date.Location())
 	nextHour := time.Date(q.Date.Year(), q.Date.Month(), q.Date.Day(), q.Date.Hour()+1, 0, 0, 0, q.Date.Location())
@@ -206,11 +368,18 @@ func (indexer *simpleIndexer) ScanHour(scanner *bufio.Scanner) (*hourData, bool,
 		Hour: &thisHour,
 	}
 	data.Partition[currMinute][currSecond] = make(map[string]int)
+	data.Partition[currMinute][currSecond][q.Query] = 1
+	if firstHourQuery != nil {
+		if _, ok := data.Partition[currMinute][currSecond][firstHourQuery.Query]; !ok {
+			data.Partition[currMinute][currSecond][firstHourQuery.Query] = 0
+		}
+		data.Partition[currMinute][currSecond][firstHourQuery.Query]++
+	}
 	for scanner.Scan() {
 		line := scanner.Text()
 		q, err := indexer.parser.Parse(line)
 		if err != nil {
-			return nil, false, err
+			return nil, false, nil, err
 		}
 		if q.Date.Before(nextHour) {
 			if q.Date.Minute() != currMinute || q.Date.Second() != currSecond {
@@ -224,9 +393,9 @@ func (indexer *simpleIndexer) ScanHour(scanner *bufio.Scanner) (*hourData, bool,
 			data.Partition[currMinute][currSecond][q.Query]++
 			continue
 		}
-		return data, false, nil
+		return data, false, q, nil
 	}
-	return data, true, nil
+	return data, true, nil, nil
 }
 
 func (indexer *simpleIndexer) finalizeHour(data *hourData) {
@@ -287,12 +456,11 @@ func (indexer *simpleIndexer) getHourIndex(hour *time.Time) (*hourIndexID, error
 	return id, nil
 }
 
-//TODO: move ./indexes to global, rewrite with getIndexFileDir
 func (indexer *simpleIndexer) createHourIndexPath(id *hourIndexID) (string, error) {
 	if id == nil {
 		return "", fmt.Errorf("passed hour index is nil")
 	}
-	pathParts := []string{"./indexes", strconv.Itoa(id.Year), strconv.Itoa(id.Month), strconv.Itoa(id.Day)}
+	pathParts := []string{indexer.indexesDir, strconv.Itoa(id.Year), strconv.Itoa(id.Month), strconv.Itoa(id.Day)}
 	path := strings.Join(pathParts, string(os.PathSeparator))
 	return path, nil
 }
@@ -321,6 +489,7 @@ func (indexer *simpleIndexer) updateParentsIndexes(parents *toUpdate) error {
 			//TODO: check if yearIdx exists
 			yearIdx.Sub(monthIdx)
 			for day := range days {
+
 				dayIdx, err := indexer.loadTotalIndex(year, month, day)
 				if err != nil {
 					return err
@@ -329,6 +498,9 @@ func (indexer *simpleIndexer) updateParentsIndexes(parents *toUpdate) error {
 				newDayIdx, err := indexer.calculateDayIndex(year, month, day)
 				if err != nil {
 					return err
+				}
+				if year == 2015 && day == 3 {
+					fmt.Println("Day index: ", len(newDayIdx.QueriesDict))
 				}
 				if err := indexer.writeTotalIndexToFile(newDayIdx, year, month, day); err != nil {
 					return err
@@ -357,7 +529,7 @@ func (indexer *simpleIndexer) calculateDayIndex(parts ...int) (*index, error) {
 		if hourData == nil {
 			continue
 		}
-		index.AddWithourRecalculation(hourData.Index)
+		index.AddWithoutRecalculation(hourData.Index)
 	}
 	index.CountQueries()
 	return index, nil
@@ -366,12 +538,12 @@ func (indexer *simpleIndexer) calculateDayIndex(parts ...int) (*index, error) {
 func (indexer *simpleIndexer) loadHourIndex(hour int, parts []int) (*hourData, error) {
 	hourIndexFileParts := []string{indexer.getIndexFileDir(parts), strconv.Itoa(hour)}
 	hourIndexFilePath := strings.Join(hourIndexFileParts, string(os.PathSeparator))
-	_, err := os.Stat(hourIndexFilePath)
-	if os.IsNotExist(err) {
-		return nil, nil
-	}
+	fileExists, err := doesFileExist(hourIndexFilePath)
 	if err != nil {
 		return nil, err
+	}
+	if !fileExists {
+		return nil, nil
 	}
 	index := &hourData{}
 	indexer.fileMux.Lock()
@@ -392,6 +564,7 @@ func (indexer *simpleIndexer) loadHourIndex(hour int, parts []int) (*hourData, e
 func (indexer *simpleIndexer) loadTotalIndex(parts ...int) (*index, error) {
 	totalIndexFileParts := []string{indexer.getIndexFileDir(parts), "total"}
 	totalIndexFilePath := strings.Join(totalIndexFileParts, string(os.PathSeparator))
+	fmt.Println("file path: ", totalIndexFilePath)
 	_, err := os.Stat(totalIndexFilePath)
 	if os.IsNotExist(err) {
 		idx := newIndex()
@@ -408,7 +581,7 @@ func (indexer *simpleIndexer) loadTotalIndex(parts ...int) (*index, error) {
 }
 
 func (indexer *simpleIndexer) getIndexFileDir(parts []int) string {
-	pathsParts := []string{"./indexes"}
+	pathsParts := []string{indexer.indexesDir}
 	for _, p := range parts {
 		pathsParts = append(pathsParts, strconv.Itoa(p))
 	}
@@ -484,4 +657,15 @@ func createPath(path string) error {
 		return err
 	}
 	return nil
+}
+
+func doesFileExist(path string) (bool, error) {
+	_, err := os.Stat(path)
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return true, nil
 }
