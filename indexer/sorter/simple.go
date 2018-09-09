@@ -21,11 +21,11 @@ import (
 )
 
 type simpleSorter struct {
-	config *config.SimpleSorter
+	config *config.Config
 	parser parser.Parser
 }
 
-func newSimpleSorter(c *config.SimpleSorter) (*simpleSorter, error) {
+func newSimpleSorter(c *config.Config) (*simpleSorter, error) {
 	sorter := &simpleSorter{
 		config: c,
 	}
@@ -44,27 +44,34 @@ func (sorter *simpleSorter) SortSet(r io.Reader) (string, error) {
 	}
 	resultFile, err := sorter.mergeDataSets(tmpDir)
 	if err != nil {
-		//os.RemoveAll(tmpDir)
+		if err := os.RemoveAll(tmpDir); err != nil {
+			return "", err
+		}
 		return "", err
 	}
-	fmt.Println("Here!")
 	resultName, err := sorter.generateResultName(resultFile)
 	if err != nil {
-		//os.RemoveAll(tmpDir)
+		if err := os.RemoveAll(tmpDir); err != nil {
+			return "", err
+		}
 		return "", err
 	}
-	sortedFile, err := moveFile(resultFile, sorter.config.OutDir, resultName)
+	sortedFile, err := moveFile(resultFile, sorter.config.Sorter.Simple.OutDir, resultName)
 	if err != nil {
-		//os.RemoveAll(tmpDir)
+		if err := os.RemoveAll(tmpDir); err != nil {
+			return "", err
+		}
 		return "", err
 	}
-	//os.RemoveAll(tmpDir)
+	if err := os.RemoveAll(tmpDir); err != nil {
+		return "", err
+	}
 	return sortedFile, nil
 }
 
 func (sorter *simpleSorter) splitLargeSet(r io.Reader) (string, error) {
 	scanner := bufio.NewScanner(r)
-	maxBufLen := sorter.config.Buffer
+	maxBufLen := sorter.config.Sorter.Simple.Buffer
 	lines := make([]string, 0)
 	var currLen uint64
 	chunkNumber := 0
@@ -78,9 +85,7 @@ func (sorter *simpleSorter) splitLargeSet(r io.Reader) (string, error) {
 			return lines[i] < lines[j]
 		})
 		fileName := fmt.Sprintf(fileTemplate, chunkNumber)
-		fmt.Println("file: ", fileName)
 		if err := dumpToFile(fileName, lines); err != nil {
-			fmt.Println("ERROR!: ", err)
 			if err := os.RemoveAll(dir); err != nil {
 				return err
 			}
@@ -155,7 +160,7 @@ func (sorter *simpleSorter) mergeDataSetsAux(first string, second string, tail [
 }
 
 func (sorter *simpleSorter) mergeFiles(first string, second string, tmpDir string) (string, error) {
-	fileMaxBuf := sorter.config.Buffer / 4
+	fileMaxBuf := sorter.config.Sorter.Simple.Buffer / 4
 	firstF, err := os.Open(first)
 	if err != nil {
 		return "", err
@@ -222,7 +227,7 @@ func (sorter *simpleSorter) createTmpFile(tmpDir string) (string, error) {
 	fileNameTempl := fmt.Sprintf("%s%cmerged_%%d", tmpDir, os.PathSeparator)
 	errCtr := 0
 	for {
-		if errCtr >= sorter.config.TmpCreationRetries {
+		if errCtr >= sorter.config.Sorter.Simple.TmpCreationRetries {
 			break
 		}
 		fileName := fmt.Sprintf(fileNameTempl, timeNow)
@@ -254,7 +259,6 @@ func (sorter *simpleSorter) generateResultName(file string) (string, error) {
 	firstLine := scanner.Text()
 	q, err := sorter.parser.Parse(firstLine)
 	if err != nil {
-		fmt.Println("First line: ", firstLine)
 		return "", err
 	}
 	firstDate := q.Date.Unix()
@@ -264,7 +268,6 @@ func (sorter *simpleSorter) generateResultName(file string) (string, error) {
 	}
 	q, err = sorter.parser.Parse(line)
 	if err != nil {
-		fmt.Println("Last line: ", line)
 		return "", err
 	}
 	secondDate := q.Date.Unix()

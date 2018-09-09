@@ -11,12 +11,12 @@ type Sorter interface {
 	SortSet(r io.Reader) (string, error)
 }
 
-func NewSorter(c *config.Sorter) (Sorter, error) {
+func NewSorter(c *config.Config) (Sorter, error) {
 	if c == nil {
 		return nil, fmt.Errorf("passed sorter configuration is nil")
 	}
-	if c.Simple != nil {
-		sorter, err := newSimpleSorter(c.Simple)
+	if c.Sorter.Simple != nil {
+		sorter, err := newSimpleSorter(c)
 		if err != nil {
 			return nil, err
 		}
