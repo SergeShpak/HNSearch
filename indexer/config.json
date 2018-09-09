@@ -1,14 +1,16 @@
 {
   "Server": {
-    "Port": 8080
+    "Port": 8081
   },
   "Indexer": {
+    "IndexesDir": "/home/bp/go/src/github.com/SergeyShpak/HNSearch/indexer/service/indexes",
+    "DataDir": "/home/bp/go/src/github.com/SergeyShpak/HNSearch/indexer/service/data",
     "Simple": {}
   },
   "Sorter": {
     "Simple": {
-      "Buffer": 52428800,
-      "OutDir": "../../../sorted",
+      "Buffer": 524288000,
+      "OutDir": "/home/bp/go/src/github.com/SergeyShpak/HNSearch/indexer/service/data",
       "TmpCreationRetries": 10
     }
   },

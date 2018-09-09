@@ -17,7 +17,9 @@ type Server struct {
 }
 
 type Indexer struct {
-	Simple *SimpleIndexer
+	IndexesDir string
+	DataDir    string
+	Simple     *SimpleIndexer
 }
 
 type SimpleIndexer struct {
