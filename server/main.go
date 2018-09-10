@@ -4,6 +4,7 @@ import (
 	"log"
 
 	"github.com/SergeyShpak/HNSearch/server/config"
+	"github.com/SergeyShpak/HNSearch/server/initialization"
 )
 
 func main() {
@@ -19,7 +20,7 @@ func main() {
 }
 
 func run(config *config.Config) error {
-	s, err := initServer(config)
+	s, err := initialization.InitServer(config)
 	if err != nil {
 		return err
 	}

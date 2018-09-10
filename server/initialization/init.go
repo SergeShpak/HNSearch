@@ -1,4 +1,4 @@
-package main
+package initialization
 
 import (
 	"context"
@@ -19,7 +19,7 @@ import (
 var indexerObj indexer.Indexer
 var requestParser reqparser.Parser
 
-func initServer(c *config.Config) (*http.Server, error) {
+func InitServer(c *config.Config) (*http.Server, error) {
 	if c == nil {
 		c = config.GetDefaultConfig()
 	}
