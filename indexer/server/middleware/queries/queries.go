@@ -3,7 +3,6 @@ package queries
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"net/http"
 
@@ -19,14 +18,13 @@ func ParseQueriesByDateRequest(next http.Handler) http.Handler {
 			w.Write([]byte(err.Error()))
 			return
 		}
-		fmt.Println("Req: %v, %v", req.FromDate, req.ToDate)
 		ctx := context.WithValue(r.Context(), ctxIDs.QueryByDateRequestID, req)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 
-func getQueriesByDateRequest(r *http.Request) (*types.QueriesByDateRequest, error) {
-	req := &types.QueriesByDateRequest{}
+func getQueriesByDateRequest(r *http.Request) (*types.DistinctQueriesCountRequest, error) {
+	req := &types.DistinctQueriesCountRequest{}
 	b, _ := ioutil.ReadAll(r.Body)
 	if err := json.Unmarshal(b, req); err != nil {
 		return nil, err

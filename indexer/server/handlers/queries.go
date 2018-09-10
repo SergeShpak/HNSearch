@@ -52,12 +52,12 @@ func CountQueries(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(msg))
 }
 
-func getQueriesTimeInterval(r *http.Request) (*types.QueriesByDateRequest, error) {
-	queriesTimeUnterval, ok := r.Context().Value(ctxIDs.QueryByDateRequestID).(*types.QueriesByDateRequest)
+func getQueriesTimeInterval(r *http.Request) (*types.DistinctQueriesCountRequest, error) {
+	req, ok := r.Context().Value(ctxIDs.QueryByDateRequestID).(*types.DistinctQueriesCountRequest)
 	if !ok {
 		return nil, fmt.Errorf("could not retrived the queries time interval from the request's context")
 	}
-	return queriesTimeUnterval, nil
+	return req, nil
 }
 
 func getIndexer(r *http.Request) (engine.Indexer, error) {

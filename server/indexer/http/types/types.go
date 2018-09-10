@@ -1,6 +1,13 @@
 package types
 
-type QueriesByDateRequest struct {
+type DistinctQueriesCountRequest DateIntervalQuery
+
+type TopQueriesRequest struct {
+	DateInterval *DateIntervalQuery
+	Size         int
+}
+
+type DateIntervalQuery struct {
 	FromDate int64
 	ToDate   int64
 }

@@ -31,7 +31,7 @@ func NewHTTPIndexer(c *config.Config) (*HTTPIndexer, error) {
 }
 
 func (indexer *HTTPIndexer) CountDistinctQueries(from *time.Time, to *time.Time) (int, error) {
-	reqBody := &types.QueriesByDateRequest{
+	reqBody := &types.DistinctQueriesCountRequest{
 		FromDate: from.Unix(),
 		ToDate:   to.Unix(),
 	}
