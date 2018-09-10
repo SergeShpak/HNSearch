@@ -11,6 +11,57 @@ import (
 	"github.com/SergeyShpak/HNSearch/indexer/server/types"
 )
 
+// Returns the number of distinct queries made during the specified time period
+func (indexer *simpleIndexer) CountDistinctQueries(from *time.Time, to *time.Time) (int, error) {
+	diff := newDatesDiff(from, to)
+	paths, minSecPaths := diff.getIndexesPaths()
+	// if the necessary data in the fast-fetch index, the search operation = the retrieve operation
+	if len(minSecPaths) == 0 && len(paths) == 1 && len(paths[0].Indexes) == 1 {
+		count, err := indexer.getSingleIndexDistinctQueriesCount(paths[0])
+		if err != nil {
+			return -1, err
+		}
+		return count, nil
+	}
+	// if the necessary data is not in the fast-fetch index, we need to combine the total indexes
+	acc, err := indexer.gatherIndexesData(paths, minSecPaths)
+	if err != nil {
+		return -1, err
+	}
+	return len(acc.QueriesDict), nil
+}
+
+// Returns the queries that were made the most and the number of times they were made.
+// The resulting queries are sorted in the descending order.
+func (indexer *simpleIndexer) GetTopQueries(from *time.Time, to *time.Time, size int) (*types.TopQueriesResponse, error) {
+	diff := newDatesDiff(from, to)
+	paths, minSecPaths := diff.getIndexesPaths()
+	// if the necessary data in the fast-fetch index, the search operation = the retrieve operation
+	if len(minSecPaths) == 0 && len(paths) == 1 && len(paths[0].Indexes) == 1 {
+		topQueries, err := indexer.getSingleIndexTopQueries(paths[0], size)
+		if err != nil {
+			return nil, err
+		}
+		resp := &types.TopQueriesResponse{
+			Queries: topQueries,
+		}
+		return resp, nil
+	}
+	// if the necessary data is not in the fast-fetch index, we need to combine the total indexes
+	acc, err := indexer.gatherIndexesData(paths, minSecPaths)
+	if err != nil {
+		return nil, err
+	}
+	if len(acc.QueriesCount) < size {
+		size = len(acc.QueriesCount)
+	}
+	topQueries := acc.QueriesCount[:size]
+	resp := &types.TopQueriesResponse{
+		Queries: topQueries,
+	}
+	return resp, nil
+}
+
 type indexesPath struct {
 	Path    []int
 	Indexes []int
@@ -35,15 +86,6 @@ func (p *indexesPath) AddIndex(i int) {
 }
 
 type minutesSecondsIndexesPaths indexesPath
-
-type indexesToExamine struct {
-	Years   []indexesPath
-	Months  []indexesPath
-	Days    []indexesPath
-	Hours   []indexesPath
-	Minutes []minutesSecondsIndexesPaths
-	Seconds []minutesSecondsIndexesPaths
-}
 
 type addDateUnit struct {
 	Years  int
@@ -71,7 +113,20 @@ func newDatesDiff(from *time.Time, to *time.Time) *datesDiff {
 	return diffDate
 }
 
-//TODO: refactor
+// This function is not pretty, and I could not really prettify it due to the complexity of the operations with *time.Time.
+// It returns the indexes that are need to be analysed to fetch the data on the given time period (which is represented by the *datesDiff object).
+//
+// The indexes are created for every time unit, i.e. second, minute, hour, day, month and year. Let's say that we need to get the data on the period
+// 12.07.2013 12:34:56 - 10.06.2015 14:20:11. The method will do the following:
+//		1.	"Ceil" the from date to the largest time unit (from_unit), so that it differs from the corresponding time unit of the to date (to_unit) in this way:
+//				to_unit - from_unit >= 2
+//				In this case, the from date becomes: 12.07.2013 12:34:56 -> 01.01.2014 00:00:00. The result of this operation, are the paths of the indexes,
+//				that contain the date of the time period 12.07.2013 12:34:56 - 01.01.2014 00:00:00.
+//		2.	For each time unit, starting from the largest (the year), get to the corresponding time unit of the to date, by fetching the paths of the indexes.
+//				In our example, the method will get the index of the year 2014 first, and move the from date to: 01.01.2014 00:00:00 -> 01.01.2015 00:00:00.
+//				Then it will get the index of all the months, that separate the current from date and the to date,
+//				so the date becomes: 01.01.2015 00:00:00 -> 01.06.2015 00:00:00. This process continues till the current from date becomes equal to the to date,
+//				and till all the necessary index paths are collected.
 func (diff *datesDiff) getIndexesPaths() ([]*indexesPath, []*minutesSecondsIndexesPaths) {
 	paths := make([]*indexesPath, 0)
 	minSecPaths := make([]*minutesSecondsIndexesPaths, 0)
@@ -266,30 +321,6 @@ func (diff *datesDiff) getIndexesPaths() ([]*indexesPath, []*minutesSecondsIndex
 	return paths, minSecPaths
 }
 
-func (indexer *simpleIndexer) CountDistinctQueries(from *time.Time, to *time.Time) (int, error) {
-	diff := newDatesDiff(from, to)
-	paths, minSecPaths := diff.getIndexesPaths()
-
-	if len(minSecPaths) == 0 && len(paths) == 1 && len(paths[0].Indexes) == 1 {
-		count, err := indexer.getSingleIndexDistinctQueriesCount(paths[0])
-		if err != nil {
-			return -1, err
-		}
-		return count, nil
-	}
-	acc := newIndex()
-	var err error
-	acc, err = indexer.addIndexes(acc, paths)
-	if err != nil {
-		return -1, err
-	}
-	acc, err = indexer.addMinSecIndexes(acc, minSecPaths)
-	if err != nil {
-		return -1, err
-	}
-	return len(acc.QueriesDict), nil
-}
-
 func (indexer *simpleIndexer) getSingleIndexDistinctQueriesCount(p *indexesPath) (int, error) {
 	parts := make([]int, 0, len(p.Path)+len(p.Indexes))
 	for _, pathPart := range p.Path {
@@ -304,6 +335,22 @@ func (indexer *simpleIndexer) getSingleIndexDistinctQueriesCount(p *indexesPath)
 		return -1, err
 	}
 	return count, nil
+}
+
+func (indexer *simpleIndexer) getSingleIndexTopQueries(p *indexesPath, size int) ([]*types.Query, error) {
+	parts := make([]int, 0, len(p.Path)+len(p.Indexes))
+	for _, pathPart := range p.Path {
+		parts = append(parts, pathPart)
+	}
+	if len(p.Indexes) != 1 {
+		return nil, fmt.Errorf("expected to have a single indexs in the indexes path object, actually got %d", len(p.Indexes))
+	}
+	parts = append(parts, p.Indexes[0])
+	topQueries, err := indexer.loadTopQueries(size, parts...)
+	if err != nil {
+		return nil, err
+	}
+	return topQueries, nil
 }
 
 func (indexer *simpleIndexer) loadDistinctQueries(parts ...int) (int, error) {
@@ -368,57 +415,6 @@ func (indexer *simpleIndexer) loadTopQueries(size int, parts ...int) ([]*types.Q
 	return topQueries, nil
 }
 
-// TODO: move accumulator construction to a separate function
-func (indexer *simpleIndexer) GetTopQueries(from *time.Time, to *time.Time, size int) (*types.TopQueriesResponse, error) {
-	diff := newDatesDiff(from, to)
-	paths, minSecPaths := diff.getIndexesPaths()
-	if len(minSecPaths) == 0 && len(paths) == 1 && len(paths[0].Indexes) == 1 {
-		topQueries, err := indexer.getSingleIndexTopQueries(paths[0], size)
-		if err != nil {
-			return nil, err
-		}
-		resp := &types.TopQueriesResponse{
-			Queries: topQueries,
-		}
-		return resp, nil
-	}
-	acc := newIndex()
-	var err error
-	acc, err = indexer.addIndexes(acc, paths)
-	if err != nil {
-		return nil, err
-	}
-	acc, err = indexer.addMinSecIndexes(acc, minSecPaths)
-	if err != nil {
-		return nil, err
-	}
-	acc.CountQueries()
-	if len(acc.QueriesCount) < size {
-		size = len(acc.QueriesCount)
-	}
-	topQueries := acc.QueriesCount[:size]
-	resp := &types.TopQueriesResponse{
-		Queries: topQueries,
-	}
-	return resp, nil
-}
-
-func (indexer *simpleIndexer) getSingleIndexTopQueries(p *indexesPath, size int) ([]*types.Query, error) {
-	parts := make([]int, 0, len(p.Path)+len(p.Indexes))
-	for _, pathPart := range p.Path {
-		parts = append(parts, pathPart)
-	}
-	if len(p.Indexes) != 1 {
-		return nil, fmt.Errorf("expected to have a single indexs in the indexes path object, actually got %d", len(p.Indexes))
-	}
-	parts = append(parts, p.Indexes[0])
-	topQueries, err := indexer.loadTopQueries(size, parts...)
-	if err != nil {
-		return nil, err
-	}
-	return topQueries, nil
-}
-
 func (indexer *simpleIndexer) addIndexes(acc *index, paths []*indexesPath) (*index, error) {
 	for _, p := range paths {
 		for _, i := range p.Indexes {
@@ -459,17 +455,19 @@ func (indexer *simpleIndexer) addMinSecIndexes(acc *index, paths []*minutesSecon
 	return acc, nil
 }
 
-// TODO: method -> function ? remove?
-func (indexer *simpleIndexer) getIndexesToExamine(from *time.Time, to *time.Time) *indexesToExamine {
-	if to.Before(*from) {
-		from, to = to, from
+func (indexer *simpleIndexer) gatherIndexesData(paths []*indexesPath, minSecPaths []*minutesSecondsIndexesPaths) (*index, error) {
+	acc := newIndex()
+	var err error
+	acc, err = indexer.addIndexes(acc, paths)
+	if err != nil {
+		return nil, err
 	}
-	toToInclude := time.Date(to.Year(), to.Month(), to.Day(), to.Hour(), to.Minute(), to.Second()-1, 0, to.Location())
-	_ = newDatesDiff(from, &toToInclude)
-	for i := 0; i < 6; i++ {
+	acc, err = indexer.addMinSecIndexes(acc, minSecPaths)
+	if err != nil {
+		return nil, err
 	}
-
-	return nil
+	acc.CountQueries()
+	return acc, nil
 }
 
 func (indexer *simpleIndexer) getIndexFilePath(fileName string, pathParts []int) string {
