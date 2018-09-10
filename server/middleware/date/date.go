@@ -63,8 +63,13 @@ func storeDateInCtx(r *http.Request, reqParser reqparser.Parser) (*http.Request,
 	if err != nil {
 		return nil, err
 	}
-	ctx := context.WithValue(r.Context(), ctxIDs.DateParamID, date)
-	ctx = context.WithValue(ctx, ctxIDs.TimeParamID, time)
+	dateTime := newDateTime(date, time)
+	tp, err := newTimePeriod(dateTime)
+	if err != nil {
+		return nil, err
+	}
+	ctx := context.WithValue(r.Context(), ctxIDs.FromDateID, tp.from)
+	ctx = context.WithValue(ctx, ctxIDs.ToDateID, tp.to)
 	rWithCtx := r.WithContext(ctx)
 	return rWithCtx, nil
 }

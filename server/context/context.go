@@ -5,7 +5,7 @@ type Key int
 const (
 	IndexerID Key = iota
 	RequestParserID
-	DateParamID
-	TimeParamID
+	FromDateID
+	ToDateID
 	SizeParamID
 )
