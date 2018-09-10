@@ -26,8 +26,7 @@ func NewSimpleIndexer(c *config.Config) (*simpleIndexer, error) {
 		fileMux: &sync.Mutex{},
 	}
 	var err error
-	// TODO: pass the whole configuration
-	indexer.parser, err = parser.NewParser(c.Parser)
+	indexer.parser, err = parser.NewParser(c)
 	if err != nil {
 		return nil, err
 	}

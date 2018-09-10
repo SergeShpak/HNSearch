@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/SergeyShpak/HNSearch/indexer/config"
-	"github.com/SergeyShpak/HNSearch/indexer/engine/simple"
+	"github.com/SergeyShpak/HNSearch/indexer/engine/internal/engines/simple"
 	"github.com/SergeyShpak/HNSearch/indexer/server/types"
 )
 
@@ -20,7 +20,6 @@ func NewIndexer(c *config.Config) (Indexer, error) {
 		return nil, fmt.Errorf("passed indexer configuration is nil")
 	}
 	if c.Indexer.Simple != nil {
-		// TODO: move simple indexer to an internal module
 		indexer, err := simple.NewSimpleIndexer(c)
 		if err != nil {
 			return nil, err
