@@ -74,7 +74,7 @@ func (tp *timePeriod) String() string {
 	return repr
 }
 
-func DateDistinctHandler(w http.ResponseWriter, r *http.Request) {
+func CountDistinctQueries(w http.ResponseWriter, r *http.Request) {
 	tp, err := getTimePeriod(r)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
@@ -95,6 +95,32 @@ func DateDistinctHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	resp := &types.DistinctQueriesCountResponse{
 		Count: queiresCount,
+	}
+	sendJSONResponse(w, resp)
+}
+
+func GetTopQueries(w http.ResponseWriter, r *http.Request) {
+	tp, err := getTimePeriod(r)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(fmt.Sprintf("An error occurred during time period parsing: %v", err)))
+		return
+	}
+	size, err := getSize(r)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(fmt.Sprintf("An error occurred during size parsing: %v", err)))
+		return
+	}
+	indexer, err := getIndexer(r)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(fmt.Sprintf("%v", err)))
+	}
+	resp, err := indexer.GetTopQueries(tp.from, tp.to, size)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(fmt.Sprintf("%v", err)))
 	}
 	sendJSONResponse(w, resp)
 }
@@ -173,5 +199,6 @@ func sendJSONResponse(w http.ResponseWriter, resp interface{}) {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte(fmt.Sprintf("could not marshal the response: %v", err)))
 	}
+	w.Header().Set("Content-Type", "application/json")
 	w.Write(respB)
 }

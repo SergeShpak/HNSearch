@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/SergeyShpak/HNSearch/indexer/parser"
+	"github.com/SergeyShpak/HNSearch/indexer/server/types"
 )
 
 var indexedFilesLogName = "log"
@@ -96,29 +97,30 @@ type hourData struct {
 
 type index struct {
 	QueriesDict  map[string]int
-	QueriesCount []*entry
+	QueriesCount []*types.Query
 }
 
 func newIndex() *index {
 	idx := &index{
 		QueriesDict:  make(map[string]int),
-		QueriesCount: make([]*entry, 0),
+		QueriesCount: make([]*types.Query, 0),
 	}
 	return idx
 }
 
 func (idx *index) CountQueries() {
-	entries := make([]*entry, 0)
+	entries := make([]*types.Query, 0)
 	for query, count := range idx.QueriesDict {
-		e := &entry{
+		e := &types.Query{
 			Query: query,
 			Count: count,
 		}
 		entries = append(entries, e)
 	}
 	sort.Slice(entries, func(i int, j int) bool {
-		return entries[i].Count < entries[j].Count
+		return entries[i].Count > entries[j].Count
 	})
+	idx.QueriesCount = entries
 }
 
 func (idx *index) Sub(other *index) {
@@ -166,11 +168,6 @@ func (idx *index) WriteTo(w io.Writer) error {
 		return err
 	}
 	return nil
-}
-
-type entry struct {
-	Query string
-	Count int
 }
 
 type hourIndexID struct {

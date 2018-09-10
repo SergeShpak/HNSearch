@@ -49,8 +49,9 @@ func initServer(c *config.Config) (*http.Server, error) {
 
 func newRouter() *mux.Router {
 	r := mux.NewRouter()
-	//r.Path("/1/queries/count/{date}").Methods("GET").Queries("size", "{size}").HandlerFunc(handlers.DatePopularHandler)
-	r.Path("/1/queries/count/{date}").Methods("GET").HandlerFunc(handlers.DateDistinctHandler)
+	r.Path("/1/queries/popular/{date}").Methods("GET").Queries("size", "{size}").HandlerFunc(handlers.GetTopQueries)
+	r.Path("/1/queries/count/{date}").Methods("GET").HandlerFunc(handlers.CountDistinctQueries)
+
 	r.Use(setRequestUtils)
 	r.Use(middleware_date.ParseDateRequest)
 	return r

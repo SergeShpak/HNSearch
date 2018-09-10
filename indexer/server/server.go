@@ -56,7 +56,7 @@ func initIndexer(c *config.Config) error {
 func newRouter() *mux.Router {
 	r := mux.NewRouter()
 	r.Path("/1/queries/count").Methods("POST").HandlerFunc(handlers.CountQueries)
-	//r.Path("/1/queries/count/{date}").Methods("GET").HandlerFunc(handlers.DateDistinctHandler)
+	r.Path("/1/queries/top").Methods("POST").HandlerFunc(handlers.GetTopQueries)
 	r.Use(injectIndexer)
 	r.Use(middleware_queries.ParseQueriesByDateRequest)
 	return r

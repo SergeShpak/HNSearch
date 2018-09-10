@@ -10,6 +10,15 @@ type DistinctQueriesCountResponse struct {
 	Count int
 }
 
+type QueryCount struct {
+	Query string
+	Count int
+}
+
+type TopQueriesResponse struct {
+	Queries []*QueryCount
+}
+
 type Date struct {
 	Year  *string
 	Month *string

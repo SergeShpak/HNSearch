@@ -3,6 +3,8 @@ package simple
 import (
 	"fmt"
 	"time"
+
+	"github.com/SergeyShpak/HNSearch/indexer/server/types"
 )
 
 type indexesPath struct {
@@ -279,6 +281,35 @@ func (indexer *simpleIndexer) CountDistinctQueries(from *time.Time, to *time.Tim
 		return 0, err
 	}
 	return len(acc.QueriesDict), nil
+}
+
+// TODO: move accumulator construction to a separate function
+func (indexer *simpleIndexer) GetTopQueries(from *time.Time, to *time.Time, size int) (*types.TopQueriesResponse, error) {
+	diff := newDatesDiff(from, to)
+	paths, minSecPaths := diff.getIndexesPaths()
+	for _, p := range paths {
+		fmt.Println("paths: ", p)
+	}
+	fmt.Println("msPaths: ", minSecPaths)
+	acc := newIndex()
+	var err error
+	acc, err = indexer.addIndexes(acc, paths)
+	if err != nil {
+		return nil, err
+	}
+	acc, err = indexer.addMinSecIndexes(acc, minSecPaths)
+	if err != nil {
+		return nil, err
+	}
+	acc.CountQueries()
+	if len(acc.QueriesCount) < size {
+		size = len(acc.QueriesCount)
+	}
+	topQueries := acc.QueriesCount[:size]
+	resp := &types.TopQueriesResponse{
+		Queries: topQueries,
+	}
+	return resp, nil
 }
 
 func (indexer *simpleIndexer) addIndexes(acc *index, paths []*indexesPath) (*index, error) {

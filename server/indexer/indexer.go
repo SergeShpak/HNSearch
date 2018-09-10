@@ -6,10 +6,12 @@ import (
 
 	"github.com/SergeyShpak/HNSearch/server/config"
 	"github.com/SergeyShpak/HNSearch/server/indexer/http"
+	serverTypes "github.com/SergeyShpak/HNSearch/server/types"
 )
 
 type Indexer interface {
 	CountDistinctQueries(from *time.Time, to *time.Time) (int, error)
+	GetTopQueries(from *time.Time, to *time.Time, size int) (*serverTypes.TopQueriesResponse, error)
 }
 
 func NewIndexer(c *config.Config) (Indexer, error) {
