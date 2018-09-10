@@ -94,7 +94,7 @@ func storeSizeInCtx(r *http.Request) (*http.Request, error) {
 func extractSize(r *http.Request) (string, error) {
 	sizeParams := http_utils.GetParameter("size", r)
 	if len(sizeParams) == 0 {
-		return "-1", nil
+		return "0", nil
 	}
 	if len(sizeParams) > 1 {
 		return "-1", fmt.Errorf("multiple size parameters passed")
