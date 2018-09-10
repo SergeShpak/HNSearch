@@ -30,7 +30,7 @@ func newSimpleSorter(c *config.Config) (*simpleSorter, error) {
 		config: c,
 	}
 	var err error
-	sorter.parser, err = parser.NewParser(c.Parser)
+	sorter.parser, err = parser.NewParser(c)
 	if err != nil {
 		return nil, fmt.Errorf("error while initializing sorter's parser: %v", err)
 	}
