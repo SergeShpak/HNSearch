@@ -1,7 +1,11 @@
 package simple
 
 import (
+	"bufio"
 	"fmt"
+	"os"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/SergeyShpak/HNSearch/indexer/server/types"
@@ -194,7 +198,7 @@ func (diff *datesDiff) getIndexesPaths() ([]*indexesPath, []*minutesSecondsIndex
 			paths = append(paths, indexes)
 		}
 	}
-	if ceiled.Day() != 0 {
+	if ceiled.Day() != 1 {
 		ceil := time.Date(ceiled.Year(), ceiled.Month()+1, 0, 0, 0, 0, 0, ceiled.Location())
 		interval := &addDateUnit{
 			Days: 1,
@@ -204,7 +208,7 @@ func (diff *datesDiff) getIndexesPaths() ([]*indexesPath, []*minutesSecondsIndex
 			paths = append(paths, indexes)
 		}
 	}
-	if int(ceiled.Month()) != 0 {
+	if int(ceiled.Month()) != 1 {
 		ceil := time.Date(ceiled.Year()+1, ceiled.Month(), 0, 0, 0, 0, 0, ceiled.Location())
 		interval := &addDateUnit{
 			Months: 1,
@@ -263,34 +267,121 @@ func (diff *datesDiff) getIndexesPaths() ([]*indexesPath, []*minutesSecondsIndex
 }
 
 func (indexer *simpleIndexer) CountDistinctQueries(from *time.Time, to *time.Time) (int, error) {
-	fmt.Printf("from: %v, to: %v\n", from, to)
 	diff := newDatesDiff(from, to)
 	paths, minSecPaths := diff.getIndexesPaths()
-	for _, p := range paths {
-		fmt.Println("paths: ", p)
+
+	if len(minSecPaths) == 0 && len(paths) == 1 && len(paths[0].Indexes) == 1 {
+		count, err := indexer.getSingleIndexDistinctQueriesCount(paths[0])
+		if err != nil {
+			return -1, err
+		}
+		return count, nil
 	}
-	fmt.Println("msPaths: ", minSecPaths)
 	acc := newIndex()
 	var err error
 	acc, err = indexer.addIndexes(acc, paths)
 	if err != nil {
-		return 0, err
+		return -1, err
 	}
 	acc, err = indexer.addMinSecIndexes(acc, minSecPaths)
 	if err != nil {
-		return 0, err
+		return -1, err
 	}
 	return len(acc.QueriesDict), nil
+}
+
+func (indexer *simpleIndexer) getSingleIndexDistinctQueriesCount(p *indexesPath) (int, error) {
+	parts := make([]int, 0, len(p.Path)+len(p.Indexes))
+	for _, pathPart := range p.Path {
+		parts = append(parts, pathPart)
+	}
+	if len(p.Indexes) != 1 {
+		return -1, fmt.Errorf("expected to have a single indexs in the indexes path object, actually got %d", len(p.Indexes))
+	}
+	parts = append(parts, p.Indexes[0])
+	count, err := indexer.loadDistinctQueries(parts...)
+	if err != nil {
+		return -1, err
+	}
+	return count, nil
+}
+
+func (indexer *simpleIndexer) loadDistinctQueries(parts ...int) (int, error) {
+	fastFetchFilePath := indexer.getIndexFilePath(fastFetchDataName, parts)
+
+	_, err := os.Stat(fastFetchFilePath)
+	if err != nil {
+		return -1, err
+	}
+
+	f, err := os.Open(fastFetchFilePath)
+	if err != nil {
+		return -1, err
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+	scanner.Scan()
+	distinctQueriesCount, err := strconv.Atoi(scanner.Text())
+	if err != nil {
+		return -1, err
+	}
+	return distinctQueriesCount, nil
+}
+
+func (indexer *simpleIndexer) loadTopQueries(size int, parts ...int) ([]*types.Query, error) {
+	fastFetchFilePath := indexer.getIndexFilePath(fastFetchDataName, parts)
+	_, err := os.Stat(fastFetchFilePath)
+	if err != nil {
+		return nil, err
+	}
+
+	f, err := os.Open(fastFetchFilePath)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+	scanner.Scan()
+	topQueries := make([]*types.Query, 0, size)
+	processedCtr := 0
+	for scanner.Scan() {
+		if processedCtr >= size {
+			break
+		}
+		l := scanner.Text()
+		lParts := strings.Split(l, "\t")
+		if len(lParts) != 2 {
+			return nil, fmt.Errorf("bad top query line format: %v", l)
+		}
+		q := &types.Query{
+			Query: lParts[0],
+		}
+		q.Count, err = strconv.Atoi(lParts[1])
+		if err != nil {
+			return nil, fmt.Errorf("cannot cast query count \"%s\" to an int", lParts[1])
+		}
+		topQueries = append(topQueries, q)
+		processedCtr++
+	}
+	return topQueries, nil
 }
 
 // TODO: move accumulator construction to a separate function
 func (indexer *simpleIndexer) GetTopQueries(from *time.Time, to *time.Time, size int) (*types.TopQueriesResponse, error) {
 	diff := newDatesDiff(from, to)
 	paths, minSecPaths := diff.getIndexesPaths()
-	for _, p := range paths {
-		fmt.Println("paths: ", p)
+	if len(minSecPaths) == 0 && len(paths) == 1 && len(paths[0].Indexes) == 1 {
+		topQueries, err := indexer.getSingleIndexTopQueries(paths[0], size)
+		if err != nil {
+			return nil, err
+		}
+		resp := &types.TopQueriesResponse{
+			Queries: topQueries,
+		}
+		return resp, nil
 	}
-	fmt.Println("msPaths: ", minSecPaths)
 	acc := newIndex()
 	var err error
 	acc, err = indexer.addIndexes(acc, paths)
@@ -312,6 +403,22 @@ func (indexer *simpleIndexer) GetTopQueries(from *time.Time, to *time.Time, size
 	return resp, nil
 }
 
+func (indexer *simpleIndexer) getSingleIndexTopQueries(p *indexesPath, size int) ([]*types.Query, error) {
+	parts := make([]int, 0, len(p.Path)+len(p.Indexes))
+	for _, pathPart := range p.Path {
+		parts = append(parts, pathPart)
+	}
+	if len(p.Indexes) != 1 {
+		return nil, fmt.Errorf("expected to have a single indexs in the indexes path object, actually got %d", len(p.Indexes))
+	}
+	parts = append(parts, p.Indexes[0])
+	topQueries, err := indexer.loadTopQueries(size, parts...)
+	if err != nil {
+		return nil, err
+	}
+	return topQueries, nil
+}
+
 func (indexer *simpleIndexer) addIndexes(acc *index, paths []*indexesPath) (*index, error) {
 	for _, p := range paths {
 		for _, i := range p.Indexes {
@@ -328,14 +435,13 @@ func (indexer *simpleIndexer) addIndexes(acc *index, paths []*indexesPath) (*ind
 
 func (indexer *simpleIndexer) addMinSecIndexes(acc *index, paths []*minutesSecondsIndexesPaths) (*index, error) {
 	for _, p := range paths {
-		fmt.Println("Path: ", p)
 		fileParts := p.Path[0:3]
 		for _, idx := range p.Indexes {
 			hourIndex, err := indexer.loadHourIndex(p.Path[3], fileParts)
 			if err != nil {
 				return nil, err
 			}
-			// indexes are minutes
+			// if indexes are minutes
 			if len(p.Path) == 4 {
 				m := hourIndex.Partition[idx]
 				for i := 0; i < 60; i++ {
@@ -343,7 +449,7 @@ func (indexer *simpleIndexer) addMinSecIndexes(acc *index, paths []*minutesSecon
 				}
 				continue
 			}
-			// indexes are seconds
+			// if indexes are seconds
 			if len(p.Path) == 5 {
 				s := hourIndex.Partition[p.Path[4]][idx]
 				acc.AddMapWithoutRecalculation(s)
@@ -353,6 +459,7 @@ func (indexer *simpleIndexer) addMinSecIndexes(acc *index, paths []*minutesSecon
 	return acc, nil
 }
 
+// TODO: method -> function ? remove?
 func (indexer *simpleIndexer) getIndexesToExamine(from *time.Time, to *time.Time) *indexesToExamine {
 	if to.Before(*from) {
 		from, to = to, from
@@ -363,4 +470,10 @@ func (indexer *simpleIndexer) getIndexesToExamine(from *time.Time, to *time.Time
 	}
 
 	return nil
+}
+
+func (indexer *simpleIndexer) getIndexFilePath(fileName string, pathParts []int) string {
+	parts := []string{indexer.getIndexFileDir(pathParts), fileName}
+	filePath := strings.Join(parts, string(os.PathSeparator))
+	return filePath
 }

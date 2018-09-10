@@ -16,6 +16,9 @@ import (
 	"github.com/SergeyShpak/HNSearch/indexer/server/types"
 )
 
+var totalIndexName = "total"
+var fastFetchDataName = "fast-fetch"
+
 var indexedFilesLogName = "log"
 var dataServiceFileNames = []string{indexedFilesLogName}
 
@@ -170,6 +173,20 @@ func (idx *index) WriteTo(w io.Writer) error {
 	return nil
 }
 
+func (idx *index) WriteFastFetchData(w io.Writer) error {
+	writer := bufio.NewWriter(w)
+	distinctQueriesCount := len(idx.QueriesDict)
+	fmt.Fprintln(writer, distinctQueriesCount)
+	for _, q := range idx.QueriesCount {
+		l := fmt.Sprintf("%s\t%d", q.Query, q.Count)
+		fmt.Fprintln(writer, l)
+	}
+	if err := writer.Flush(); err != nil {
+		return err
+	}
+	return nil
+}
+
 type hourIndexID struct {
 	Day   int
 	Month int
@@ -225,11 +242,9 @@ func (indexer *simpleIndexer) addDataToIndexes(path string) error {
 		return err
 	}
 	f.Close()
-	/*
-		if err := os.Remove(sortedPath); err != nil {
-			return err
-		}
-	*/
+	if err := os.Remove(sortedPath); err != nil {
+		return err
+	}
 	return nil
 
 }
@@ -499,17 +514,17 @@ func (indexer *simpleIndexer) updateParentsIndexes(parents *toUpdate) error {
 				if year == 2015 && day == 3 {
 					fmt.Println("Day index: ", len(newDayIdx.QueriesDict))
 				}
-				if err := indexer.writeTotalIndexToFile(newDayIdx, year, month, day); err != nil {
+				if err := indexer.writeIndexes(newDayIdx, year, month, day); err != nil {
 					return err
 				}
 				monthIdx.Add(newDayIdx)
 			}
-			if err := indexer.writeTotalIndexToFile(monthIdx, year, month); err != nil {
+			if err := indexer.writeIndexes(monthIdx, year, month); err != nil {
 				return err
 			}
 			yearIdx.Add(monthIdx)
 		}
-		if err := indexer.writeTotalIndexToFile(yearIdx, year); err != nil {
+		if err := indexer.writeIndexes(yearIdx, year); err != nil {
 			return err
 		}
 	}
@@ -559,9 +574,10 @@ func (indexer *simpleIndexer) loadHourIndex(hour int, parts []int) (*hourData, e
 }
 
 func (indexer *simpleIndexer) loadTotalIndex(parts ...int) (*index, error) {
-	totalIndexFileParts := []string{indexer.getIndexFileDir(parts), "total"}
+	//TODO: move to a subroutine
+	totalIndexFileParts := []string{indexer.getIndexFileDir(parts), totalIndexName}
 	totalIndexFilePath := strings.Join(totalIndexFileParts, string(os.PathSeparator))
-	fmt.Println("file path: ", totalIndexFilePath)
+
 	_, err := os.Stat(totalIndexFilePath)
 	if os.IsNotExist(err) {
 		idx := newIndex()
@@ -604,10 +620,20 @@ func (indexer *simpleIndexer) loadIndex(indexFilePath string) (*index, error) {
 	return idx, nil
 }
 
+func (indexer *simpleIndexer) writeIndexes(idx *index, pathParts ...int) error {
+	if err := indexer.writeTotalIndexToFile(idx, pathParts...); err != nil {
+		return err
+	}
+	if err := indexer.writeFastFetchDataToFile(idx, pathParts...); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (indexer *simpleIndexer) writeTotalIndexToFile(idx *index, pathParts ...int) error {
 	// TODO: move to function
 	fileDir := indexer.getIndexFileDir(pathParts)
-	filePath := strings.Join([]string{fileDir, "total"}, string(os.PathSeparator))
+	filePath := strings.Join([]string{fileDir, totalIndexName}, string(os.PathSeparator))
 
 	indexer.fileMux.Lock()
 	defer indexer.fileMux.Unlock()
@@ -617,6 +643,27 @@ func (indexer *simpleIndexer) writeTotalIndexToFile(idx *index, pathParts ...int
 		return err
 	}
 	if err := idx.WriteTo(f); err != nil {
+		if err := f.Close(); err != nil {
+			return err
+		}
+		return err
+	}
+	return nil
+}
+
+func (indexer *simpleIndexer) writeFastFetchDataToFile(idx *index, pathParts ...int) error {
+	// TODO: move to function
+	fileDir := indexer.getIndexFileDir(pathParts)
+	filePath := strings.Join([]string{fileDir, fastFetchDataName}, string(os.PathSeparator))
+
+	indexer.fileMux.Lock()
+	defer indexer.fileMux.Unlock()
+
+	f, err := os.Create(filePath)
+	if err != nil {
+		return err
+	}
+	if err := idx.WriteFastFetchData(f); err != nil {
 		if err := f.Close(); err != nil {
 			return err
 		}
