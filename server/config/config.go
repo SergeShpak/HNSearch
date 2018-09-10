@@ -41,7 +41,11 @@ func GetDefaultConfig() *Config {
 		Server: &Server{
 			Port: 8080,
 		},
-		Indexer: &Indexer{},
+		Indexer: &Indexer{
+			HTTP: &HTTPIndexer{
+				Addr: ":8081",
+			},
+		},
 	}
 	return c
 }
