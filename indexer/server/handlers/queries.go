@@ -48,7 +48,6 @@ func CountQueries(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(msg))
 		return
 	}
-	fmt.Println("resp: ", msg)
 	w.Header().Set("Content-Type", "application/json")
 	w.Write([]byte(msg))
 }
@@ -62,9 +61,7 @@ func GetTopQueries(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	from := time.Unix(queriesTimeInterval.FromDate, 0).UTC()
-	fmt.Println("From: ", from)
 	to := time.Unix(queriesTimeInterval.ToDate, 0).UTC()
-	fmt.Println("To: ", to)
 	size, err := getSize(r)
 	if err != nil {
 		msg := fmt.Sprintf("could not get top queries size: %v", err)
