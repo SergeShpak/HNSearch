@@ -1,0 +1,40 @@
+apiVersion: v1
+kind: Service
+metadata:
+    name: hn-server
+    labels:
+        app: hn-server
+        env: minikube
+spec:
+    type: LoadBalancer
+    selector:
+        app: hn-server
+        env: minikube
+    ports:
+        - port: 8080
+          name: http
+---
+kind: Deployment
+apiVersion: extensions/v1beta1
+metadata:
+  name: hn-server
+  labels:
+    app: hn-server
+    env: minikube
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: hn-server
+        env: minikube
+    spec:
+      containers:
+        - name: hn-server
+          image: hn-server:dev
+          command: ["/build/HNServer"]
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8080

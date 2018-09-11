@@ -1,0 +1,77 @@
+apiVersion: v1
+kind: Service
+metadata:
+    name: hn-indexer
+    labels:
+        app: hn-indexer
+        env: minikube
+spec:
+    type: LoadBalancer
+    selector:
+        app: hn-indexer
+        env: minikube
+    ports:
+        - port: 8080
+          name: http
+---
+kind: Deployment
+apiVersion: extensions/v1beta1
+metadata:
+  name: hn-indexer
+  labels:
+    app: hn-indexer
+    env: minikube
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: hn-indexer
+        env: minikube
+    spec:
+      volumes:
+        - name: hn-indexer-volume
+          persistentVolumeClaim:
+            claimName: hn-indexer-claim
+      containers:
+        - name: hn-indexer
+          image: hn-indexer:dev
+          command: ["sh", "/etc/exec.sh"]
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8080
+          volumeMounts:
+            - mountPath: "/usr/HNIndexer"
+              name: hn-indexer-volume
+          resources:
+            requests:
+              memory: 1Gi
+---
+kind: PersistentVolume
+apiVersion: v1
+metadata:
+  name: hn-indexer-volume
+  labels:
+    type: local
+spec:
+  storageClassName: manual
+  capacity:
+    storage: 10Gi
+  accessModes:
+    - ReadWriteOnce
+  hostPath:
+    path: "/usr/local/HNIndexer"
+---
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: hn-indexer-claim
+spec:
+  storageClassName: manual
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi

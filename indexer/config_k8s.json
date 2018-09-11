@@ -1,0 +1,21 @@
+{
+  "Server": {
+    "Port": 8080
+  },
+  "Indexer": {
+    "IndexesDir": "/usr/HNIndexer/indexes",
+    "DataDir": "/usr/HNIndexer/data",
+    "Simple": {}
+  },
+  "Sorter": {
+    "Simple": {
+      "Buffer": 524288000,
+      "OutDir": "/usr/HNIndexer/sorted",
+      "TmpCreationRetries": 10,
+      "TmpDir": "/usr/HNIndexer/tmp"
+    }
+  },
+  "Parser": {
+    "Simple": {}
+  }
+}

@@ -11,7 +11,8 @@
     "Simple": {
       "Buffer": 524288000,
       "OutDir": "/home/bp/go/src/github.com/SergeyShpak/HNSearch/indexer/service/data",
-      "TmpCreationRetries": 10
+      "TmpCreationRetries": 10,
+      "TmpDir": "/tmp"
     }
   },
   "Parser": {
