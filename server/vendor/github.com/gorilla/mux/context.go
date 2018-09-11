@@ -1,15 +1,12 @@
-// +build !go1.7
-
 package mux
 
 import (
+	"context"
 	"net/http"
-
-	"github.com/gorilla/context"
 )
 
 func contextGet(r *http.Request, key interface{}) interface{} {
-	return context.Get(r, key)
+	return r.Context().Value(key)
 }
 
 func contextSet(r *http.Request, key, val interface{}) *http.Request {
@@ -17,10 +14,9 @@ func contextSet(r *http.Request, key, val interface{}) *http.Request {
 		return r
 	}
 
-	context.Set(r, key, val)
-	return r
+	return r.WithContext(context.WithValue(r.Context(), key, val))
 }
 
 func contextClear(r *http.Request) {
-	context.Clear(r)
+	return
 }
