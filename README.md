@@ -143,7 +143,9 @@ Another subject that needs to be researched is the index representation. Today t
 
 The current implementation has a very poor test coverage. It is another subject to work on.
 
-Finally, there's a better logging system (multiple logging levels, different outputs) and an errors module (typed errors, stack printing, etc.) to be added: this will allow to have meaningful logs of the normal and abnormal processes that take place in the service.
+I need to add a better logging system (multiple logging levels, different outputs) and an errors module (typed errors, stack printing, etc.): this will allow to have meaningful logs of the normal and abnormal processes that take place in the service.
+
+There are also several TODOs left in the code, which I should also address.
 
 ## Authors
 
