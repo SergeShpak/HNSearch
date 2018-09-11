@@ -33,6 +33,7 @@ type SimpleSorter struct {
 	Buffer             uint64
 	OutDir             string
 	TmpCreationRetries int
+	TmpDir             string
 }
 
 type Parser struct {

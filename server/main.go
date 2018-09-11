@@ -1,14 +1,20 @@
 package main
 
 import (
+	"flag"
 	"log"
 
 	"github.com/SergeyShpak/HNSearch/server/config"
 	"github.com/SergeyShpak/HNSearch/server/initialization"
 )
 
+var flagConfigFile string
+
 func main() {
-	config, err := config.Read("config.json")
+	log.Println("Start of main")
+	flag.StringVar(&flagConfigFile, "config", "/etc/HNIndexer/config.json", "path for HNIndexer config file")
+	flag.Parse()
+	config, err := config.Read(flagConfigFile)
 	if err != nil {
 		log.Println("Error during configuration reading: ", err)
 		return

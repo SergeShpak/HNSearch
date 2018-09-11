@@ -202,6 +202,7 @@ func (indexer *simpleIndexer) IndexData() error {
 	if err != nil {
 		return err
 	}
+	fmt.Println("Unindexed files: ", dataFilesPaths)
 	l, err := indexer.loadIndexedFilesLog()
 	if err != nil {
 		return err
@@ -226,6 +227,11 @@ func (indexer *simpleIndexer) addDataToIndexes(path string) error {
 	}
 	sortedPath, err := indexer.sorter.SortSet(f)
 	f.Close()
+	if err != nil {
+		return err
+	}
+
+	fmt.Println("Sorted path: ", sortedPath)
 
 	f, err = os.Open(sortedPath)
 	if err != nil {
@@ -510,9 +516,6 @@ func (indexer *simpleIndexer) updateParentsIndexes(parents *toUpdate) error {
 				newDayIdx, err := indexer.calculateDayIndex(year, month, day)
 				if err != nil {
 					return err
-				}
-				if year == 2015 && day == 3 {
-					fmt.Println("Day index: ", len(newDayIdx.QueriesDict))
 				}
 				if err := indexer.writeIndexes(newDayIdx, year, month, day); err != nil {
 					return err

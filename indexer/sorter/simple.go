@@ -4,7 +4,6 @@ package sorter
 TODO:
 	1. Move random file generation to a subroutine (use github.com/rs/xid)
 	2. Add configuration checking
-	3. Pass output directory as a parameter
 */
 
 import (
@@ -12,13 +11,17 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"os"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/SergeyShpak/HNSearch/indexer/config"
 	"github.com/SergeyShpak/HNSearch/indexer/parser"
 )
+
+var tmpChunkNameTemplate = "chunk_%v"
 
 type simpleSorter struct {
 	config *config.Config
@@ -63,6 +66,7 @@ func (sorter *simpleSorter) SortSet(r io.Reader) (string, error) {
 		}
 		return "", err
 	}
+	log.Println("Here!")
 	if err := os.RemoveAll(tmpDir); err != nil {
 		return "", err
 	}
@@ -75,18 +79,26 @@ func (sorter *simpleSorter) splitLargeSet(r io.Reader) (string, error) {
 	lines := make([]string, 0)
 	var currLen uint64
 	chunkNumber := 0
-	dir := fmt.Sprintf("tmp_chunks_%v", time.Now().Unix())
-	if err := os.MkdirAll(dir, 0777); err != nil {
-		return dir, err
+	//TODO: add collision protection mechanism
+	tmpDirName := sorter.getTmpDirName()
+	tmpDirPath := strings.Join(
+		[]string{
+			sorter.config.Sorter.Simple.TmpDir,
+			tmpDirName,
+		},
+		string(os.PathSeparator),
+	)
+	if err := os.MkdirAll(tmpDirPath, 0777); err != nil {
+		return "", err
 	}
-	fileTemplate := fmt.Sprintf("./%s%cchunk_%%d", dir, os.PathSeparator)
+	fileTemplate := fmt.Sprintf("%s%cchunk_%%d", tmpDirPath, os.PathSeparator)
 	writeToFileFn := func() error {
 		sort.Slice(lines, func(i int, j int) bool {
 			return lines[i] < lines[j]
 		})
 		fileName := fmt.Sprintf(fileTemplate, chunkNumber)
 		if err := dumpToFile(fileName, lines); err != nil {
-			if err := os.RemoveAll(dir); err != nil {
+			if err := os.RemoveAll(tmpDirPath); err != nil {
 				return err
 			}
 			return err
@@ -101,7 +113,7 @@ func (sorter *simpleSorter) splitLargeSet(r io.Reader) (string, error) {
 		lines = append(lines, line)
 		if currLen > maxBufLen {
 			if err := writeToFileFn(); err != nil {
-				if err := os.RemoveAll(dir); err != nil {
+				if err := os.RemoveAll(tmpDirPath); err != nil {
 					return "", err
 				}
 				return "", err
@@ -110,12 +122,18 @@ func (sorter *simpleSorter) splitLargeSet(r io.Reader) (string, error) {
 		}
 	}
 	if err := writeToFileFn(); err != nil {
-		if err := os.RemoveAll(dir); err != nil {
+		if err := os.RemoveAll(tmpDirPath); err != nil {
 			return "", err
 		}
 		return "", err
 	}
-	return dir, nil
+	return tmpDirPath, nil
+}
+
+func (sorter *simpleSorter) getTmpDirName() string {
+	const tmpChunksDirNameTemplate = "tmp_chunk_%v"
+	dirName := fmt.Sprintf(tmpChunksDirNameTemplate, time.Now().Unix())
+	return dirName
 }
 
 func (sorter *simpleSorter) mergeDataSets(dir string) (string, error) {

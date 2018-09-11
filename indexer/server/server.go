@@ -27,6 +27,7 @@ func InitServer(c *config.Config) (*http.Server, error) {
 	if c.Server != nil && c.Server.Port != 0 {
 		addr = ":" + strconv.Itoa(c.Server.Port)
 	}
+	log.Println("Addr:", addr)
 	s := &http.Server{
 		Addr:         addr,
 		Handler:      r,
