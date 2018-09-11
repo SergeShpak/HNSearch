@@ -108,7 +108,7 @@ The __./server__ diretory contains the __Server__ code. It is implemented in Go 
 
 The __Server__ does not know about the implementation of the __Indexer__, it rather communicates with the __Indexer__ interface. I did it to do a kind of dependency injection. In this case the dependencies are define in the configuration file, and the concrete implementation is choses outside the entity that demands it. This is not a pure DI and the DI from textbooks is hard to implement in Go (one of the main reasons for that is the lack of generics). To my knowledge there is only one  reflection-based DI framework well-known to the go community: [dig](https://github.com/uber-go/dig). However, I decided to use a simpler approach to keep the code flexible and readable at the same time.
 
-I used the http implementation of the __Indexer__: the __Server__ and the __Indexer__ communicate via the HTTP protocol. The __Indexer__ works as has been explained [before](#Index-based-approach). It consists of three parts: sorter, parser and engine. The sorter and parser take part in the creating of the indexes.
+I used the http implementation of the __Indexer__: the __Server__ and the __Indexer__ communicate via the HTTP protocol. The __Indexer__ works as has been explained [before](#index-based-approach). It consists of three parts: sorter, parser and engine. The sorter and parser take part in the creating of the indexes.
 
 The sorter sorts the received query data file, as all the subsequent operations are much easier to perform on the sorted list of queries. As the data file can be large, the sorter does the [external sorting](https://en.wikipedia.org/wiki/External_sorting) (sorry for the Wiki reference, could not find anything more solid in the internet; it has some great reference to Knuth, though). The exact size of the data that can fit into the RAM is a configuration file parameter **Buffer** (by default it is 500 MB).
 
@@ -126,7 +126,7 @@ I decided to make the code of __Indexer__ more general and made two improvements
 
 ## Running the tests
 
-There are not too many tests for the time being. The most interesting ones are in the __./server/server_test.go__. Basically, they verify that the indexer returns correct results. To run them [run the service locally](#Run-HNSearch-locally) and do:
+There are not too many tests for the time being. The most interesting ones are in the __./server/server_test.go__. Basically, they verify that the indexer returns correct results. To run them [run the service locally](#run-hnsearch-locally) and do:
 
 ```bash
 cd ./server && go test server_test.go -count=1
