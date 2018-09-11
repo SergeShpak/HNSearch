@@ -362,7 +362,6 @@ func (indexer *simpleIndexer) updateIndexes(r io.Reader) error {
 	if err != nil {
 		return err
 	}
-	fmt.Println(indexesToUpdate)
 	if err := indexer.updateParentsIndexes(indexesToUpdate); err != nil {
 		return err
 	}

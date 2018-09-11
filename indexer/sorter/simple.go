@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"os"
 	"sort"
 	"strings"
@@ -66,7 +65,6 @@ func (sorter *simpleSorter) SortSet(r io.Reader) (string, error) {
 		}
 		return "", err
 	}
-	log.Println("Here!")
 	if err := os.RemoveAll(tmpDir); err != nil {
 		return "", err
 	}
